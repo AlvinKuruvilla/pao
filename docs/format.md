@@ -218,7 +218,7 @@ V1_3_14, 52 bytes
 |---|---|
 | `name` | The module's path under Bun's virtual root (below). |
 | `contents` | The module's bytes: source text, or the file itself for assets. |
-| `sourcemap` | A serialized source map; length 0 if none. |
+| `sourcemap` | A serialized source map (section 6.1); length 0 if none. |
 | `bytecode` | JavaScriptCore bytecode; length 0 if none. In Bun 1.4 its meaning depends on a flag (section 8.3). |
 | `module_info` | Bun 1.3.14+; a record JavaScriptCore reads when loading ES module bytecode. Not specified further here. |
 | `bytecode_origin_path` | Bun 1.3.14+; the path the bytecode was compiled against, which must match at run time for the bytecode to be used. |
@@ -242,6 +242,48 @@ Module names start with one of these prefixes:
 | `compiled://root/` | Bun 1.0.0 |
 | `/$bunfs/root/` | Bun 1.0.36 and later, macOS and Linux |
 | `B:/~BUN/root/` | Windows |
+
+### 6.1 Source map
+
+A module's `sourcemap` names a serialized source map: the bundle's original
+source files and the mappings from the module's code back into them. Bun
+writes one when built with `--sourcemap`, from 1.1.30. Bun 1.0.0 to 1.1.20
+accept `--sourcemap` with `--compile` and embed nothing; their source has no
+serialized form.
+
+The layout is the same from 1.1.30 to 1.4.4. Little-endian, unaligned, and
+every `StringPointer` offset is relative to the start of the source map, not
+the payload:
+
+```text
+ 0       4       8                    8+8n                 8+16n          8+16n+m
+ +-------+-------+--------------------+--------------------+--------------+----------------+
+ | n     | m     | names: n x         | sources: n x       | mappings     | strings        |
+ | u32   | u32   | StringPointer      | StringPointer      | m bytes      |                |
+ +-------+-------+--------------------+--------------------+--------------+----------------+
+
+ n  source file count     m  mappings length in bytes
+```
+
+| Field | Meaning |
+|---|---|
+| names | Each file's path as Bun's JSON source map lists it under `sources`: relative to the directory Bun was run from, not the entrypoint or the output, so it can begin with `../`. UTF-8. Measured on the matrix and on a 1.4.4 build importing from its parent directory. |
+| sources | Each file's original text, UTF-8, compressed as one zstd frame at level 1. The frame records the decompressed size. |
+| mappings | Before 1.3.14, the JSON map's `mappings` string: base64 VLQ, uncompressed. From 1.3.14, Bun's `InternalSourceMap` blob, not specified here. |
+| strings | The bytes every pointer refers to, starting right after `mappings`. Bun's writer asserts that. |
+
+| Bun | mappings |
+|---|---|
+| 1.1.30 – 1.3.7 | VLQ text (`mappingVLQ` in `StandaloneModuleGraph.zig`) |
+| 1.3.14 – 1.4.4 | `InternalSourceMap` blob, "varint deltas + sync points" |
+
+No tested release between 1.3.7 and 1.3.14 was read, so the change falls
+somewhere in that range. A reader that wants only the original sources needs
+the names and sources, which no release has changed.
+
+From 1.3.14, `--compile --sourcemap` also writes the JSON source map beside
+the executable, as `<executable>.map` or `index.js.map`. Its `sources` and
+`sourcesContent` match the embedded names and decompressed sources.
 
 ## 7. Field values
 
@@ -521,7 +563,7 @@ Three sets of executables back this document. The first two are rebuilt by
 
 | Set | Contents | Checks |
 |---|---|---|
-| Matrix | `fixture/`, built by 14 releases from 1.0.0 to 1.4.4 for macOS arm64, Linux x64 and Windows x64, plain, with `--bytecode` and with `--sourcemap`: 110 executables. | Layout detection gives one candidate per file, matching the release (`tests/locate_corpus.rs`); placement (section 3, measured on the 74 without `--sourcemap`); version strings (section 10). |
+| Matrix | `fixture/`, built by 14 releases from 1.0.0 to 1.4.4 for macOS arm64, Linux x64 and Windows x64, plain, with `--bytecode` and with `--sourcemap`: 110 executables. | Layout detection gives one candidate per file, matching the release (`tests/locate_corpus.rs`); placement (section 3, measured on the 74 without `--sourcemap`); version strings (section 10); in the 30 `--sourcemap` builds from 1.1.30, source map names and decompressed sources against the fixture files and, from 1.3.14, the JSON map Bun writes beside the executable (section 6.1). |
 | Loaders | `fixture-loaders/`, built by the same 14 releases for the host: 14 executables. | Loader values against section 7.1's tables (`tests/loaders_corpus.rs`). |
 | Production | One large executable built by a custom Bun 1.4.4. | Layout detection on thousands of modules; flags, extension records and linked bytecode (section 8). |
 
