@@ -154,10 +154,7 @@ pub fn describe(bytes: &[u8]) -> Result<NativeLibrary, NativeError> {
 }
 
 fn slices(arches: &[impl FatArch], bytes: &[u8]) -> Result<Vec<Image>, NativeError> {
-    arches
-        .iter()
-        .map(|arch| image(arch.data(bytes)?))
-        .collect()
+    arches.iter().map(|arch| image(arch.data(bytes)?)).collect()
 }
 
 fn image(bytes: &[u8]) -> Result<Image, NativeError> {

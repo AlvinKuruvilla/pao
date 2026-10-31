@@ -180,12 +180,21 @@ fn print_native(out: &mut dyn Write, contents: &[u8]) -> io::Result<()> {
         .iter()
         .map(|image| image.architecture.as_str())
         .collect();
-    writeln!(out, "{indent}{}: {}", library.format, architectures.join(", "))?;
+    writeln!(
+        out,
+        "{indent}{}: {}",
+        library.format,
+        architectures.join(", ")
+    )?;
 
     // Each field is listed once when every slice agrees on it, and once per
     // slice otherwise; slices of one build often differ only in a target
     // triple inside the build path.
-    let width = architectures.iter().map(|name| name.len()).max().unwrap_or(0);
+    let width = architectures
+        .iter()
+        .map(|name| name.len())
+        .max()
+        .unwrap_or(0);
     let mut field = |name: &str, value: &dyn Fn(&Image) -> Option<String>| -> io::Result<()> {
         let values: Vec<(&str, Option<String>)> = library
             .images

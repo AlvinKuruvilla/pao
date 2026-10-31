@@ -143,7 +143,12 @@ fn fixture_addon_describes_with_no_node_api_exports() {
             .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
         assert_eq!(library.format, native::Format::MachO, "{}", path.display());
         assert_eq!(library.images.len(), 1, "{}", path.display());
-        assert_eq!(library.images[0].architecture, "arm64", "{}", path.display());
+        assert_eq!(
+            library.images[0].architecture,
+            "arm64",
+            "{}",
+            path.display()
+        );
         assert!(
             library.images[0].node_api_exports.is_empty(),
             "{}: {:?}",
