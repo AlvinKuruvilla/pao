@@ -15,6 +15,7 @@ use std::path::PathBuf;
 
 use pao_core::layout_version::LayoutVersion;
 use pao_core::locate::locate;
+use pao_core::version::find_version;
 
 /// The layout each tested Bun release uses, from `docs/format.md`.
 fn expected_layout(bun_version: &str) -> LayoutVersion {
@@ -66,6 +67,16 @@ fn matrix_binaries_decode_with_their_release_layout() {
         if !name.ends_with(&*file_name) {
             failures.push(format!("{file_name}: entry point named {name}"));
         }
+
+        match find_version(&binary, &located) {
+            Ok(version) => {
+                let numbers = format!("{}.{}.{}", version.major, version.minor, version.patch);
+                if numbers != bun_version {
+                    failures.push(format!("{file_name}: runtime says Bun {version}"));
+                }
+            }
+            Err(error) => failures.push(format!("{file_name}: {error}")),
+        }
     }
     assert!(failures.is_empty(), "{} of {} failed:\n{}", failures.len(), paths.len(), failures.join("\n"));
 }
@@ -78,5 +89,6 @@ fn extra_binary_decodes() {
     };
     let binary = fs::read(path).expect("PAO_EXTRA_BINARY is a readable file");
     let located = locate(&binary).unwrap_or_else(|error| panic!("{error}"));
-    eprintln!("{:?}, {} modules", located.layout, located.entries.len());
+    let version = find_version(&binary, &located).unwrap_or_else(|error| panic!("{error}"));
+    eprintln!("Bun {version}, {:?}, {} modules", located.layout, located.entries.len());
 }

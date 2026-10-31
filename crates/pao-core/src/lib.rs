@@ -25,3 +25,4 @@ pub mod locate;
 pub mod offsets;
 pub mod payload;
 pub mod string_pointer;
+pub mod version;
