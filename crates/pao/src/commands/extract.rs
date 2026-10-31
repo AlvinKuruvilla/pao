@@ -44,9 +44,21 @@
 //!   instead of being rewritten. Bun does not write such names, so one is
 //!   either a format change or a crafted executable, and a quiet rename would
 //!   hide both.
-//! - **Text as UTF-8**: `latin1` and `utf16` modules are converted, so that
-//!   every text file opens in an editor. The output is then not the stored
-//!   bytes; `pao inspect` gives the offsets for anyone who needs those.
+//! - **Readable over byte-exact**: by default the output is changed so that
+//!   it opens in an editor, and is then not what the executable stores.
+//!   `pao inspect` gives the offsets for anyone who needs the stored bytes.
+//!   - `latin1` and `utf16` modules are converted to UTF-8.
+//!   - A `js` module whose name has no JavaScript extension gets `.js`. Bun
+//!     names the entry module after the executable, `cli` or `app.exe`, and
+//!     `app.exe` becomes `app.js` so a build for any platform extracts alike.
+//!     The loader decides, not the name: a `file` asset named `.js` is left
+//!     alone, and so is everything that is not code.
+//!   - A module named `.zst` that is a zstd frame is decompressed and loses
+//!     the suffix, `README.md.zst` to `README.md`. Bun stores files
+//!     byte for byte, so this compression is the app's own; one large
+//!     Bun 1.4.4 executable embeds 127 such files, nearly all text.
+//!     `--no-decompress` keeps them as stored. One that fails to decompress is
+//!     written as stored, with a warning.
 
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
@@ -59,12 +71,18 @@ use pao_core::locate::{Located, locate};
 use pao_core::names;
 use pao_core::sourcemap;
 use pao_core::version::{BunVersion, find_version};
+use pao_core::zstd_frame;
 
 /// Prefixes of module names, from `docs/format.md` section 6. A name with
 /// none of them still extracts, from its first path segment.
 const VIRTUAL_ROOTS: [&str; 3] = ["/$bunfs/root/", "B:/~BUN/root/", "compiled://root/"];
 
-pub fn run(binary: &Path, output: Option<&Path>, force: bool) -> anyhow::Result<()> {
+pub fn run(
+    binary: &Path,
+    output: Option<&Path>,
+    force: bool,
+    decompress: bool,
+) -> anyhow::Result<()> {
     let bytes = fs::read(binary).with_context(|| format!("read {}", binary.display()))?;
     let located =
         locate(&bytes).with_context(|| format!("find the Bun payload in {}", binary.display()))?;
@@ -82,7 +100,7 @@ pub fn run(binary: &Path, output: Option<&Path>, force: bool) -> anyhow::Result<
         Path::to_path_buf,
     );
 
-    let bundled = plan_bundled(&located, &version)?;
+    let bundled = plan_bundled(&located, &version, decompress)?;
     let sources = plan_sources(&located, stem)?;
 
     prepare_output(&output, force)?;
@@ -106,8 +124,13 @@ pub fn run(binary: &Path, output: Option<&Path>, force: bool) -> anyhow::Result<
 /// so that two names landing on one path are caught before writing.
 type Plan = BTreeMap<PathBuf, Vec<u8>>;
 
-/// Each module's contents under `bundled/`, text converted to UTF-8.
-fn plan_bundled(located: &Located<'_>, version: &BunVersion<'_>) -> anyhow::Result<Plan> {
+/// Each module's contents under `bundled/`, made readable as the module docs
+/// describe.
+fn plan_bundled(
+    located: &Located<'_>,
+    version: &BunVersion<'_>,
+    decompress: bool,
+) -> anyhow::Result<Plan> {
     let mut plan = Plan::new();
     for module in &located.modules {
         let name = module.name;
@@ -115,13 +138,13 @@ fn plan_bundled(located: &Located<'_>, version: &BunVersion<'_>) -> anyhow::Resu
             .iter()
             .find_map(|root| name.strip_prefix(root))
             .unwrap_or(name);
-        let segments = safe_segments(relative).with_context(|| format!("place module {name}"))?;
-        let path: PathBuf = ["bundled".to_string()]
-            .into_iter()
-            .chain(segments)
-            .collect();
+        let mut segments =
+            safe_segments(relative).with_context(|| format!("place module {name}"))?;
+        let file_name = segments
+            .last_mut()
+            .expect("safe_segments refuses empty names");
 
-        let contents = to_utf8(
+        let mut contents = to_utf8(
             module.contents,
             module
                 .entry
@@ -129,8 +152,34 @@ fn plan_bundled(located: &Located<'_>, version: &BunVersion<'_>) -> anyhow::Resu
                 .and_then(|value| names::encoding(value, version)),
         )
         .with_context(|| format!("convert module {name} to UTF-8"))?;
-        if plan.insert(path, contents).is_some() {
-            bail!("two modules are named {name}; extracting both would lose one");
+
+        if names::loader(module.entry.loader, version) == Some("js") {
+            if ![".js", ".mjs", ".cjs"].iter().any(|ext| file_name.ends_with(ext)) {
+                let base = file_name.strip_suffix(".exe").unwrap_or(file_name);
+                *file_name = format!("{base}.js");
+            }
+        } else if decompress
+            && let Some(base) = file_name.strip_suffix(".zst").filter(|base| !base.is_empty())
+            && contents.starts_with(&zstd_frame::MAGIC)
+        {
+            match zstd_frame::decompress(&contents) {
+                Ok(decompressed) => {
+                    contents = decompressed;
+                    *file_name = base.to_string();
+                }
+                Err(error) => eprintln!("warning: {name}: {error}; written as stored"),
+            }
+        }
+
+        let path: PathBuf = ["bundled".to_string()]
+            .into_iter()
+            .chain(segments)
+            .collect();
+        if plan.insert(path.clone(), contents).is_some() {
+            bail!(
+                "two modules land on {}, the second being {name}; extracting both would lose one",
+                path.display()
+            );
         }
     }
     Ok(plan)

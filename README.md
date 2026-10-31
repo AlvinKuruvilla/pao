@@ -41,6 +41,11 @@ pao inspect app       # the module table
 pao extract app       # writes app.extracted/{bundled,sources}/
 ```
 
+`bundled/` is made readable rather than byte-exact: text is converted to UTF-8,
+JavaScript modules get a `.js` name, and embedded `.zst` files are
+decompressed (`--no-decompress` keeps them). `pao inspect` gives the offsets
+of the stored bytes.
+
 `sources/` holds the original files when the app was built with
 `--sourcemap`, at their paths relative to the directory Bun ran in. Bun does
 not record that directory's name, so when a source lies outside it

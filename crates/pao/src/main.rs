@@ -42,6 +42,10 @@ enum Command {
         /// the same names.
         #[arg(long)]
         force: bool,
+        /// Write embedded `.zst` files as stored instead of decompressing
+        /// them.
+        #[arg(long)]
+        no_decompress: bool,
     },
 }
 
@@ -57,6 +61,7 @@ fn main() -> anyhow::Result<()> {
             binary,
             output,
             force,
-        } => commands::extract::run(&binary, output.as_deref(), force),
+            no_decompress,
+        } => commands::extract::run(&binary, output.as_deref(), force, !no_decompress),
     }
 }
