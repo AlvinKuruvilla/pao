@@ -20,6 +20,7 @@
 
 pub mod byte_reader;
 pub mod entry;
+pub mod flags;
 pub mod layout_version;
 pub mod locate;
 pub mod names;

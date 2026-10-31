@@ -13,6 +13,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
+use pao_core::flags;
 use pao_core::layout_version::LayoutVersion;
 use pao_core::locate::locate;
 use pao_core::version::find_version;
@@ -73,6 +74,13 @@ fn matrix_binaries_decode_with_their_release_layout() {
                 let numbers = format!("{}.{}.{}", version.major, version.minor, version.patch);
                 if numbers != bun_version {
                     failures.push(format!("{file_name}: runtime says Bun {version}"));
+                }
+                // No bit beyond what the release defines: before 1.3.3 the
+                // bytes are padding and must be zero.
+                if let Some(raw) = located.offsets.flags
+                    && raw & !flags::defined(&version) != 0
+                {
+                    failures.push(format!("{file_name}: flags {raw:#x} set bits Bun {version} does not define"));
                 }
             }
             Err(error) => failures.push(format!("{file_name}: {error}")),

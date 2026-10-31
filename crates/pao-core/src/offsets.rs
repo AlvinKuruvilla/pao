@@ -1,13 +1,17 @@
 use crate::byte_reader::LittleEndianByteReader;
 use crate::layout_version::LayoutVersion;
 use crate::string_pointer::StringPointer;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Offsets {
     pub byte_count: u64,
     pub modules_ptr: StringPointer,
     pub entry_point_id: u32,
     pub compile_exec_argv_ptr: Option<StringPointer>, // 32-byte layouts only
-    pub flags: Option<u32>,                           // V1_3_14 only
+    /// Bytes 28..32 of a 32-byte record, as stored. They are a bit set from
+    /// Bun 1.3.3 and padding before, inside the same layout, so which bits
+    /// mean anything depends on the release; see [`crate::flags`].
+    pub flags: Option<u32>,
 }
 
 pub fn parse_offsets(bytes: &[u8], layout: LayoutVersion) -> Option<Offsets> {
@@ -18,15 +22,10 @@ pub fn parse_offsets(bytes: &[u8], layout: LayoutVersion) -> Option<Offsets> {
     let modules_ptr = bytes.pointer_at(8)?;
     let entry_point_id = bytes.u32_at(16)?;
 
-    let compile_exec_argv_ptr = if layout.offsets_size() == 32 {
-        Some(bytes.pointer_at(20)?)
+    let (compile_exec_argv_ptr, flags) = if layout.offsets_size() == 32 {
+        (Some(bytes.pointer_at(20)?), Some(bytes.u32_at(28)?))
     } else {
-        None
-    };
-    let flags = if layout == LayoutVersion::V1_3_14 {
-        Some(bytes.u32_at(28)?)
-    } else {
-        None
+        (None, None)
     };
 
     Some(Offsets {
@@ -91,13 +90,15 @@ mod tests {
         assert_eq!(offsets.flags, None);
     }
 
-    /// V1_2_23 has the 32-byte record but its last 4 bytes are padding on
-    /// releases before 1.3.7, so `flags` is withheld rather than reported as 0.
+    /// V1_2_23 spans Bun 1.2.23 to 1.3.7, and 1.3.3 turned its last 4 bytes
+    /// from padding into flags (1.3.7 builds write 0xc). Withholding them by
+    /// layout dropped real flags, so they are read for every 32-byte layout
+    /// and interpreted by release in `flags`.
     #[test]
-    fn withholds_flags_before_v1_3_14() {
+    fn reads_flags_in_both_32_byte_layouts() {
         let offsets = parse_offsets(&BUN_1_4_4_OFFSETS, LayoutVersion::V1_2_23)
             .expect("32 bytes is the V1_2_23 size");
         assert!(offsets.compile_exec_argv_ptr.is_some());
-        assert_eq!(offsets.flags, None);
+        assert_eq!(offsets.flags, Some(0x5fc));
     }
 }
