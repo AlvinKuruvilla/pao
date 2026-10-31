@@ -154,12 +154,17 @@ fn plan_bundled(
         .with_context(|| format!("convert module {name} to UTF-8"))?;
 
         if names::loader(module.entry.loader, version) == Some("js") {
-            if ![".js", ".mjs", ".cjs"].iter().any(|ext| file_name.ends_with(ext)) {
+            if ![".js", ".mjs", ".cjs"]
+                .iter()
+                .any(|ext| file_name.ends_with(ext))
+            {
                 let base = file_name.strip_suffix(".exe").unwrap_or(file_name);
                 *file_name = format!("{base}.js");
             }
         } else if decompress
-            && let Some(base) = file_name.strip_suffix(".zst").filter(|base| !base.is_empty())
+            && let Some(base) = file_name
+                .strip_suffix(".zst")
+                .filter(|base| !base.is_empty())
             && contents.starts_with(&zstd_frame::MAGIC)
         {
             match zstd_frame::decompress(&contents) {

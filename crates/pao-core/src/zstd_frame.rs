@@ -91,7 +91,10 @@ mod tests {
         let mut forged = MAGIC.to_vec();
         forged.push(0xE0);
         forged.extend((1u64 << 40).to_le_bytes());
-        assert_eq!(decompress(&forged), Err(FrameError::TooLarge { claimed: 1 << 40 }));
+        assert_eq!(
+            decompress(&forged),
+            Err(FrameError::TooLarge { claimed: 1 << 40 })
+        );
     }
 
     #[test]
