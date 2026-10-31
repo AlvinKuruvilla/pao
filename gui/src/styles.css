@@ -475,3 +475,22 @@ kbd {
   outline: 2px solid #4fc1ff;
   outline-offset: -2px;
 }
+
+/* The details panel, hidden. */
+.panes.no-details {
+  grid-template-columns: 280px 1fr;
+}
+
+/* Status takes the free space, so the toggle sits at the right edge. */
+.toolbar .toggle {
+  margin-left: auto;
+}
+
+.toolbar .status + .toggle {
+  margin-left: 8px;
+}
+
+.toggle.on {
+  background: var(--accent);
+  border-color: #007fd4;
+}

@@ -11,6 +11,17 @@ import { remember } from "./recent";
 
 const isMac = navigator.platform.startsWith("Mac");
 
+/** Whether the module details panel is shown, remembered across launches.
+ * A convenience, so unavailable storage just means it starts shown. */
+const DETAILS_KEY = "pao.showDetails";
+const storedShowDetails = () => {
+  try {
+    return localStorage.getItem(DETAILS_KEY) !== "false";
+  } catch {
+    return true;
+  }
+};
+
 export function App() {
   const [binary, setBinary] = useState<OpenedBinary | null>(null);
   const [selected, setSelected] = useState<FileSummary | null>(null);
@@ -18,7 +29,18 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [picking, setPicking] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [showDetails, setShowDetails] = useState(storedShowDetails);
   const tree = useRef<FileTreeHandle>(null);
+
+  const toggleDetails = () =>
+    setShowDetails((shown) => {
+      try {
+        localStorage.setItem(DETAILS_KEY, String(!shown));
+      } catch {
+        // Storage unavailable; the panel still toggles for this session.
+      }
+      return !shown;
+    });
 
   const openPath = async (path: string) => {
     setBusy(true);
@@ -51,14 +73,22 @@ export function App() {
   // Shortcuts, caught in the capture phase so they work while Monaco has
   // focus. Cmd+P (Ctrl+P off macOS) toggles the file picker; inside the
   // picker Ctrl+P moves the highlight instead, Telescope's binding, so on
-  // macOS only Cmd+P closes it. Cmd+O opens an executable.
+  // macOS only Cmd+P closes it. Cmd+O opens an executable. Cmd+Option+B
+  // toggles the details panel, VS Code's key for its secondary side bar.
+  // That one is matched on `code`, the physical key, because with Option
+  // held macOS reports the character Option produces (`∫` for B); the
+  // others match the typed letter, so they follow the keyboard layout.
   const browseRef = useRef(browse);
   browseRef.current = browse;
+  const toggleDetailsRef = useRef(toggleDetails);
+  toggleDetailsRef.current = toggleDetails;
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!(isMac ? event.metaKey : event.ctrlKey)) return;
       const key = event.key.toLowerCase();
-      if (key === "p") setPicking((current) => !current);
+      if (event.altKey && event.code === "KeyB") toggleDetailsRef.current();
+      else if (event.altKey) return;
+      else if (key === "p") setPicking((current) => !current);
       else if (key === "o") void browseRef.current();
       else return;
       event.preventDefault();
@@ -125,8 +155,18 @@ export function App() {
           {binary.file_name} <span className="muted">Bun {binary.bun_version}</span>
         </span>
         {status && <span className="status">{status}</span>}
+        <button
+          className={`toggle${showDetails ? " on" : ""}`}
+          onClick={toggleDetails}
+          aria-pressed={showDetails}
+          title={`${showDetails ? "Hide" : "Show"} module details (⌥⌘B)`}
+        >
+          Details
+        </button>
       </header>
-      <main className={`panes${dragging ? " dragging" : ""}`}>
+      <main
+        className={`panes${dragging ? " dragging" : ""}${showDetails ? "" : " no-details"}`}
+      >
         <aside className="sidebar">
           <FileTree
             ref={tree}
@@ -141,9 +181,11 @@ export function App() {
         <section className="content">
           {selected ? <Viewer file={selected} /> : <div className="placeholder">Select a file</div>}
         </section>
-        <aside className="inspector">
-          <Details binary={binary} file={selected} />
-        </aside>
+        {showDetails && (
+          <aside className="inspector">
+            <Details binary={binary} file={selected} />
+          </aside>
+        )}
       </main>
       {picking && (
         <QuickOpen
