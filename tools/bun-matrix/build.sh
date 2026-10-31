@@ -1,9 +1,9 @@
 #!/bin/bash
 # Build the fixture with every Bun version under bun/<version>/bun, for each
-# cross-compile target and with and without --bytecode. Every attempt gets a
-# row in out/builds.tsv, failures included: older Bun versions predate
-# cross-compilation (~1.1) and --bytecode (1.1.30), and those rows are part of
-# the result rather than noise.
+# cross-compile target, plain, with --bytecode and with --sourcemap. Every
+# attempt gets a row in out/builds.tsv, failures included: older Bun versions
+# predate cross-compilation (~1.1) and --bytecode (1.1.30), and those rows are
+# part of the result rather than noise.
 #
 # Usage: tools/bun-matrix/build.sh
 # Needs: tools/bun-matrix/bun/<version>/bun for each version to test, from
@@ -19,7 +19,7 @@ set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 out="$here/out"
-mkdir -p "$out/bin" "$out/log"
+mkdir -p "$out/bin" "$out/log" "$out/maps"
 printf 'version\ttarget\tflags\tstatus\tbinary\n' > "$out/builds.tsv"
 
 targets=(bun-darwin-arm64 bun-linux-x64 bun-windows-x64)
@@ -27,13 +27,14 @@ targets=(bun-darwin-arm64 bun-linux-x64 bun-windows-x64)
 for bun in "$here"/bun/*/bun; do
     version=$(basename "$(dirname "$bun")")
     for target in "${targets[@]}"; do
-        for flags in plain bytecode; do
+        for flags in plain bytecode sourcemap; do
             name="$version-$target-$flags"
             bin="$out/bin/$name"
             [[ $target == *windows* ]] && bin="$bin.exe"
 
             native=(build --compile "$here/fixture/index.ts" --outfile "$bin")
             [[ $flags == bytecode ]] && native+=(--bytecode)
+            [[ $flags == sourcemap ]] && native+=(--sourcemap)
             args=("${native[@]}" "--target=$target")
 
             # Before 1.1.20 (measured; 1.1.0 fails, 1.1.20 works) `--target`
@@ -50,6 +51,13 @@ for bun in "$here"/bun/*/bun; do
                 status=fail
                 bin=-
             fi
+            # Some --sourcemap builds also write a JSON source map into bin/,
+            # as <binary>.map or index.js.map. Move it to maps/: the corpus
+            # test expects bin/ to hold binaries only, and the JSON is the
+            # reference for decoding the map embedded in the binary.
+            for map in "$out"/bin/*.map; do
+                [[ -e $map ]] && mv "$map" "$out/maps/$name.map"
+            done
             printf '%s\t%s\t%s\t%s\t%s\n' "$version" "$target" "$flags" "$status" "$bin" >> "$out/builds.tsv"
         done
     done

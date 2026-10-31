@@ -1,7 +1,7 @@
 //! `locate` against real executables, too large to check in.
 //!
 //! - `PAO_MATRIX_DIR`: binaries from `bun-matrix/build.sh`, named
-//!   `<bun version>-bun-<os>-<arch>-<plain|bytecode>[.exe]`. Each embeds one
+//!   `<bun version>-bun-<os>-<arch>-<plain|bytecode|sourcemap>[.exe]`. Each embeds one
 //!   module named after the file, plus, from Bun 1.4.4, the fixture's text
 //!   import as a second entry.
 //! - `PAO_EXTRA_BINARY`: any other `bun build --compile` executable. Its
@@ -41,8 +41,8 @@ fn matrix_binaries_decode_with_their_release_layout() {
         .map(|entry| entry.expect("directory entries are readable").path())
         .collect();
     paths.sort();
-    // Catches an empty or wrong directory. 74 is the count built on 2026-10-29.
-    assert_eq!(paths.len(), 74, "unexpected binary count in {}", dir.display());
+    // Catches an empty or wrong directory. 110 is the count built on 2026-10-31.
+    assert_eq!(paths.len(), 110, "unexpected binary count in {}", dir.display());
 
     let mut failures = Vec::new();
     for path in &paths {
