@@ -1,11 +1,52 @@
-# pao
+<p align="center">
+  <img src="crates/pao-gui/icons/logo.svg" width="128" alt="Pao icon">
+</p>
 
-pao reads the module graph that `bun build --compile` embeds in a single-file
-executable: every bundled module's path, source, source map and bytecode.
+<h1 align="center">Pao</h1>
 
-It finds the payload by scanning for Bun's trailer instead of parsing Mach-O,
-PE or ELF, and infers the layout structurally because Bun records no format
-version. One scanner covers every platform and every release tested.
+<p align="center">
+  Read the code inside Bun single-file executables.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Bun-1.0_to_1.4.4-f9f1e1?logo=bun&logoColor=black" alt="Bun 1.0 to 1.4.4">
+  <img src="https://img.shields.io/badge/rust-2024_edition-orange?logo=rust" alt="Rust 2024 edition">
+  <a href="#license"><img src="https://img.shields.io/badge/license-MIT_OR_Apache--2.0-green" alt="MIT OR Apache-2.0 license"></a>
+</p>
+
+`bun build --compile` ships a program as one executable: Bun's runtime with
+the bundled code, assets and source maps attached. The layout of that payload
+records no version and has changed three times since Bun 1.0, so what an
+executable runs is opaque to anyone who did not build it.
+
+Pao reads the module graph back: every module's path, code, source map and
+bytecode, from executables built for macOS, Linux and Windows by Bun 1.0.0
+to 1.4.4. It finds the payload by scanning for Bun's trailer instead of
+parsing Mach-O, PE or ELF, and infers the layout from the bytes. When the
+program was built with `--sourcemap`, the original files come back too,
+TypeScript and all.
+
+It comes as a library, `pao-core`; a command line tool, `pao`; and a desktop
+app that browses an executable the way ILSpy browses a .NET assembly.
+
+## Who needs this
+
+- **Anyone handed an executable to run.** See what code it contains, which
+  Bun release built it, and what files it embeds, before running it.
+- **Developers who lost their source.** An app built with `--sourcemap`
+  carries its original files, byte for byte; `pao extract` writes them out.
+- **Developers checking a build.** Confirm which modules, assets and
+  bytecode made it into the executable, and where each sits in the file.
+
+## Contents
+
+- [Who needs this](#who-needs-this)
+- [Status](#status)
+- [Supported Bun releases](#supported-bun-releases)
+- [Usage](#usage)
+- [Desktop app](#desktop-app)
+- [Testing](#testing)
+- [License](#license)
 
 ## Status
 
