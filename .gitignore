@@ -2,3 +2,6 @@
 /tmp
 /tools/bun-matrix/bun
 /tools/bun-matrix/out
+/tools/bun-matrix/fixture-loaders/data.db
+/tools/bun-matrix/fixture-loaders/addon.node
+/tools/bun-matrix/fixture-loaders/module.wasm
