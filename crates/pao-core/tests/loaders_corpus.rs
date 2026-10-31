@@ -17,6 +17,7 @@ use std::path::PathBuf;
 
 use pao_core::locate::locate;
 use pao_core::names;
+use pao_core::native;
 use pao_core::version::find_version;
 
 /// The loader `release` uses for a fixture file with this extension, as
@@ -113,4 +114,43 @@ fn loader_names_match_the_release() {
         failures.len(),
         failures.join("\n")
     );
+}
+
+/// The fixture's `addon.node` is `cc -shared` output defining one function,
+/// `pao_fixture`, and no Node-API entry point. Bun stores it without loading
+/// it, so every release must hand back a library `native::describe` reads as
+/// a host Mach-O image that exports nothing in the Node-API namespace: the
+/// case `pao inspect` marks as "no Node-API entry points".
+#[test]
+fn fixture_addon_describes_with_no_node_api_exports() {
+    let Some(dir) = env::var_os("PAO_LOADERS_DIR").map(PathBuf::from) else {
+        eprintln!("PAO_LOADERS_DIR unset; skipping");
+        return;
+    };
+
+    let mut checked = 0;
+    for entry in fs::read_dir(&dir).expect("PAO_LOADERS_DIR is a readable directory") {
+        let path = entry.expect("directory entries are readable").path();
+        let binary = fs::read(&path).expect("fixture binaries are readable");
+        let located = locate(&binary).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+        let addon = located
+            .modules
+            .iter()
+            .find(|module| module.name.ends_with(".node"))
+            .unwrap_or_else(|| panic!("{}: no `.node` entry", path.display()));
+
+        let library = native::describe(addon.contents)
+            .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+        assert_eq!(library.format, native::Format::MachO, "{}", path.display());
+        assert_eq!(library.images.len(), 1, "{}", path.display());
+        assert_eq!(library.images[0].architecture, "arm64", "{}", path.display());
+        assert!(
+            library.images[0].node_api_exports.is_empty(),
+            "{}: {:?}",
+            path.display(),
+            library.images[0].node_api_exports
+        );
+        checked += 1;
+    }
+    assert_eq!(checked, 14, "one binary per Bun release in the matrix");
 }
