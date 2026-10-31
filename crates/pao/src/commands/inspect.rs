@@ -17,6 +17,7 @@ use pao_core::entry::ModuleEntry;
 use pao_core::flags;
 use pao_core::locate::{Located, locate};
 use pao_core::names;
+use pao_core::native::{self, Image, Library};
 use pao_core::version::{BunVersion, find_version};
 
 use crate::output::{Color, with_output};
@@ -153,6 +154,9 @@ fn print(out: &mut dyn Write, located: &Located<'_>, version: BunVersion<'_>) ->
             paint(name_style, module.name),
         )?;
         writeln!(out, "{:27}{}", "", describe(entry, &version, *base, linked))?;
+        if names::loader(entry.loader, &version) == Some("napi") {
+            print_native(out, module.contents)?;
+        }
     }
     writeln!(out)?;
     writeln!(
@@ -161,6 +165,69 @@ fn print(out: &mut dyn Write, located: &Located<'_>, version: BunVersion<'_>) ->
         paint(style::ENTRY_POINT, "*"),
         paint(style::LABEL, "entry point")
     )
+}
+
+/// The headers of a `napi` module, under its row: format and architectures,
+/// then the addon's own name, its Node-API exports and the libraries it links.
+fn print_native(out: &mut dyn Write, contents: &[u8]) -> io::Result<()> {
+    let indent = format!("{:27}", "");
+    let library = match native::describe(contents) {
+        Ok(library) => library,
+        Err(error) => return writeln!(out, "{indent}{}", paint(style::UNDEFINED, error)),
+    };
+    let architectures: Vec<&str> = library
+        .images
+        .iter()
+        .map(|image| image.architecture.as_str())
+        .collect();
+    writeln!(out, "{indent}{}: {}", library.format, architectures.join(", "))?;
+
+    // Each field is listed once when every slice agrees on it, and once per
+    // slice otherwise; slices of one build often differ only in a target
+    // triple inside the build path.
+    let width = architectures.iter().map(|name| name.len()).max().unwrap_or(0);
+    let mut field = |name: &str, value: &dyn Fn(&Image) -> Option<String>| -> io::Result<()> {
+        let values: Vec<(&str, Option<String>)> = library
+            .images
+            .iter()
+            .map(|image| (image.architecture.as_str(), value(image)))
+            .collect();
+        let label = paint(style::LABEL, format!("{name:<9}"));
+        if values.windows(2).all(|pair| pair[0].1 == pair[1].1) {
+            if let Some((_, Some(value))) = values.first() {
+                writeln!(out, "{indent}{label}{value}")?;
+            }
+            return Ok(());
+        }
+        for (architecture, value) in values {
+            let value = value.unwrap_or_else(|| paint(style::LABEL, "none"));
+            let architecture = paint(style::LABEL, format!("{architecture:<width$}"));
+            writeln!(out, "{indent}{label}{architecture} {value}")?;
+        }
+        Ok(())
+    };
+    field("name", &|image| image.own_name.clone())?;
+    field("exports", &|image| {
+        Some(if image.node_api_exports.is_empty() {
+            paint(style::UNDEFINED, "no Node-API entry points")
+        } else {
+            image.node_api_exports.join(", ")
+        })
+    })?;
+    field("links", &|image| {
+        let links: Vec<String> = image.libraries.iter().map(library_name).collect();
+        (!links.is_empty()).then(|| links.join(", "))
+    })?;
+    Ok(())
+}
+
+/// `ScreenCaptureKit (weak)`: the short name, then how it is loaded.
+fn library_name(library: &Library) -> String {
+    let name = library.short_name();
+    match library.kind {
+        Some(kind) => format!("{name} ({kind})"),
+        None => name.to_string(),
+    }
 }
 
 /// `js, esm, latin1, server, 1,244 bytes, bytecode 688 bytes`: the entry's
