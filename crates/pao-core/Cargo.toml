@@ -1,0 +1,9 @@
+[package]
+name = "pao-core"
+description = "Parse the module graph embedded in Bun single-file executables"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+memchr = "2.8.3"
