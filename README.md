@@ -9,10 +9,12 @@ version. One scanner covers every platform and every release tested.
 
 ## Status
 
-- **`pao-core`**: locates the payload and decodes the module table. Done for
-  the four layouts below.
+- **`pao-core`**: locates the payload, decodes the module table, and decodes
+  embedded source maps. Done for the four layouts below.
 - **`pao` CLI**: `inspect` prints the payload summary and module table.
-  `extract` exists but is not implemented yet.
+  `extract` writes each module's code, and the original source files from any
+  embedded source map. Splitting a bundle back into its files without a source
+  map is not done yet.
 - **GUI** (Tauri): not started.
 
 ## Supported Bun releases
@@ -33,6 +35,18 @@ layout fails with an error saying so, not a wrong answer.
 on each platform, how detection works, and what is still unknown.
 
 ## Usage
+
+```sh
+pao inspect app       # the module table
+pao extract app       # writes app.extracted/{bundled,sources}/
+```
+
+`sources/` holds the original files when the app was built with
+`--sourcemap`, at their paths relative to the directory Bun ran in. Bun does
+not record that directory's name, so when a source lies outside it
+(`../shared.ts`), the directory is named after the executable.
+
+As a library:
 
 ```rust
 let binary = std::fs::read("app")?;

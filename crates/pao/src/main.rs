@@ -29,13 +29,19 @@ enum Command {
         /// The executable produced by `bun build --compile`.
         binary: PathBuf,
     },
-    /// Write every embedded module to a directory.
+    /// Write every embedded module, and the original sources from any source
+    /// maps, to a directory.
     Extract {
         /// The executable produced by `bun build --compile`.
         binary: PathBuf,
-        /// Directory to write modules into.
-        #[arg(short, long, default_value = "extracted")]
-        output: PathBuf,
+        /// Directory to write into. Defaults to `<binary name>.extracted` in
+        /// the current directory.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Write into an existing, non-empty directory, replacing files with
+        /// the same names.
+        #[arg(long)]
+        force: bool,
     },
 }
 
@@ -43,6 +49,6 @@ fn main() -> anyhow::Result<()> {
     let Cli { command, color, no_pager } = Cli::parse();
     match command {
         Command::Inspect { binary } => commands::inspect::run(&binary, color, no_pager),
-        Command::Extract { binary, output } => commands::extract::run(&binary, &output),
+        Command::Extract { binary, output, force } => commands::extract::run(&binary, output.as_deref(), force),
     }
 }
