@@ -1,0 +1,102 @@
+# Real-world Bun single-file executables, read by pao and never run.
+# tools/corpus/fetch.py downloads them into tools/corpus/out/<name>/.
+#
+# Each [[asset]] pins one GitHub release asset:
+#   name    directory under out/, unique
+#   repo    owner/repository on GitHub
+#   tag     release tag; changing it is how the corpus is refreshed
+#   asset   file name in that release
+#   sha256  digest of the asset; leave it out to have fetch.py print it
+#   why     what this binary covers that the fixture builds do not
+#
+# Every pinned sha256 was checked against the digest GitHub records for the
+# asset, and against the project's own checksum file where it publishes one
+# (terminaltype, botmux, capa).
+
+[[asset]]
+name = "terminaltype-darwin-arm64"
+repo = "daisfasl/terminaltype"
+tag = "v0.1.0"
+asset = "terminaltype-darwin-arm64"
+sha256 = "4066240c8409baa566070d56f87c55425eac8bebb0d7956967215e27d5ae0ab1"
+why = "the only release found that embeds a database as sqlite_embedded"
+
+[[asset]]
+name = "gbrain-darwin-arm64"
+repo = "garrytan/gbrain"
+tag = "v0.60.530.0"
+asset = "gbrain-darwin-arm64"
+sha256 = "8ca750fbe7fad770a23d873ffe898170d4746bc4044814b5be78b974b5196317"
+why = "tree-sitter and PGLite wasm imported with type: file, a prebuilt napi lock addon"
+
+[[asset]]
+name = "gbrain-linux-x64"
+repo = "garrytan/gbrain"
+tag = "v0.60.530.0"
+asset = "gbrain-linux-x64"
+sha256 = "fc3bdc013143f25d109158fc6ff367a17fff3d3f112773c81cadd73f823f656a"
+why = "the same app as an ELF build, for ELF napi addons"
+
+[[asset]]
+name = "botmux-darwin-arm64"
+repo = "deepcoldy/botmux"
+tag = "v3.55.0"
+asset = "botmux-darwin-arm64"
+sha256 = "db618213f42974be168a5ef24c183f61ed321e1d846407b525202def3fccac86"
+why = "two napi addons: node-pty (C++) and @napi-rs/canvas (Rust)"
+
+[[asset]]
+name = "botmux-linux-x64"
+repo = "deepcoldy/botmux"
+tag = "v3.55.0"
+asset = "botmux-linux-x64"
+sha256 = "e589b056101862b3ba4224cd6a04a86da773512e50b4d813514e118e60263969"
+why = "the same addons as ELF"
+
+[[asset]]
+name = "opencode-darwin-arm64"
+repo = "anomalyco/opencode"
+tag = "v1.19.5"
+asset = "opencode-darwin-arm64.zip"
+sha256 = "c1c9e62521192192ef4c3ed1355ada2144055bddb61682217e997b03c55203c1"
+why = "built with Bun.build({ compile }) and bytecode; photon wasm, @parcel/watcher napi"
+
+[[asset]]
+name = "opencode-linux-x64"
+repo = "anomalyco/opencode"
+tag = "v1.19.5"
+asset = "opencode-linux-x64.tar.gz"
+sha256 = "588310a336fa3b9df36b3f0225b26f679d453efaad0cf3d66c3651ef3ec1647a"
+why = "the same app as ELF"
+
+[[asset]]
+name = "opencode-windows-x64"
+repo = "anomalyco/opencode"
+tag = "v1.19.5"
+asset = "opencode-windows-x64.zip"
+sha256 = "09a6e693157f0887e504f2cf4357a8cbddc5ead5d0dffb9a269dcc47c48640f5"
+why = "a Windows build, for PE napi addons"
+
+[[asset]]
+name = "capa-darwin-arm64"
+repo = "infragate/capa"
+tag = "v2.4.0"
+asset = "capa-aarch64-apple-darwin"
+sha256 = "8e6df8c147b1cf9dfc3aafabbacc6d35c6b6f9038ec97da9f59ced3d114d70c3"
+why = "@napi-rs/keyring embedded through a generated static require"
+
+[[asset]]
+name = "capa-linux-x64"
+repo = "infragate/capa"
+tag = "v2.4.0"
+asset = "capa-x86_64-unknown-linux-gnu"
+sha256 = "759c5b7a63aff3d67e6a0014a2529f2090e8ed140c5d27c573a2fc013591b54e"
+why = "the same addon as ELF"
+
+[[asset]]
+name = "capa-windows-x64"
+repo = "infragate/capa"
+tag = "v2.4.0"
+asset = "capa-x86_64-pc-windows-msvc.exe"
+sha256 = "cb91e1ff1175f2128c71bb228f6d0d3cdbd2edae2bec24901a914cc3c3461669"
+why = "the same addon as PE"

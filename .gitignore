@@ -8,3 +8,4 @@
 /gui/node_modules
 /gui/dist
 /crates/pao-gui/gen
+/tools/corpus/out
