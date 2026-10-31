@@ -29,3 +29,4 @@ pub mod payload;
 pub mod sourcemap;
 pub mod string_pointer;
 pub mod version;
+pub mod zstd_frame;

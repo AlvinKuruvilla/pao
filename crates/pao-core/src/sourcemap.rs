@@ -23,20 +23,14 @@
 //! # Trade-offs
 //!
 //! - **Decompression on request**: [`SourceFile::decompress`] runs per file,
-//!   so a caller that lists names pays nothing for the sources.
-//! - **A size cap**: a file whose zstd frame claims more than
-//!   [`MAX_SOURCE_LEN`] bytes is refused rather than allocated, because the
-//!   claim comes from the executable and is not checked against anything.
+//!   so a caller that lists names pays nothing for the sources. It is capped
+//!   by [`zstd_frame::MAX_DECOMPRESSED_LEN`].
 
 use std::fmt;
 
 use crate::byte_reader::LittleEndianByteReader;
 use crate::string_pointer::StringPointer;
-
-/// The largest decompressed source file accepted. Arbitrary: 256 MiB is far
-/// above any hand-written source file, and low enough that a forged frame
-/// size cannot exhaust memory. Raising it only matters for generated files.
-pub const MAX_SOURCE_LEN: u64 = 256 << 20;
+use crate::zstd_frame::{self, FrameError};
 
 /// `n` and `m`, the two `u32`s before the pointer arrays.
 const HEADER_LEN: usize = 8;
@@ -69,13 +63,8 @@ pub enum SourceMapError {
     PointerOutOfRange { index: usize },
     /// File `index`'s name is not UTF-8.
     NameNotUtf8 { index: usize },
-    /// The file's zstd frame does not record its decompressed size. Bun's
-    /// writer always records it.
-    UnknownSize { name: String },
-    /// The file's zstd frame claims more than [`MAX_SOURCE_LEN`] bytes.
-    TooLarge { name: String, claimed: u64 },
-    /// zstd rejected the file's frame.
-    Decompress { name: String, message: String },
+    /// The named file's zstd frame did not decompress.
+    Decompress { name: String, error: FrameError },
 }
 
 impl fmt::Display for SourceMapError {
@@ -93,18 +82,8 @@ impl fmt::Display for SourceMapError {
             SourceMapError::NameNotUtf8 { index } => {
                 write!(f, "source map file name {index} is not UTF-8")
             }
-            SourceMapError::UnknownSize { name } => {
-                write!(
-                    f,
-                    "compressed source {name} does not record its size; Bun always writes one"
-                )
-            }
-            SourceMapError::TooLarge { name, claimed } => write!(
-                f,
-                "compressed source {name} claims {claimed} bytes, over the {MAX_SOURCE_LEN}-byte limit"
-            ),
-            SourceMapError::Decompress { name, message } => {
-                write!(f, "compressed source {name} does not decompress: {message}")
+            SourceMapError::Decompress { name, error } => {
+                write!(f, "compressed source {name} does not decompress: {error}")
             }
         }
     }
@@ -152,37 +131,10 @@ impl SourceFile<'_> {
     /// The file's original text. Bun wrote it from a JSON string, so it is
     /// UTF-8, but that is not checked here.
     pub fn decompress(&self) -> Result<Vec<u8>, SourceMapError> {
-        let name = || self.name.to_string();
-        let claimed = zstd::zstd_safe::get_frame_content_size(self.compressed)
-            .map_err(|_| SourceMapError::Decompress {
-                name: name(),
-                message: "not a zstd frame".to_string(),
-            })?
-            .ok_or_else(|| SourceMapError::UnknownSize { name: name() })?;
-        if claimed > MAX_SOURCE_LEN {
-            return Err(SourceMapError::TooLarge {
-                name: name(),
-                claimed,
-            });
-        }
-        // `bulk::decompress` fails rather than writing past `claimed` bytes,
-        // so the cap holds even if the frame lies about its size.
-        let text = zstd::bulk::decompress(self.compressed, claimed as usize).map_err(|error| {
-            SourceMapError::Decompress {
-                name: name(),
-                message: error.to_string(),
-            }
-        })?;
-        if text.len() as u64 != claimed {
-            return Err(SourceMapError::Decompress {
-                name: name(),
-                message: format!(
-                    "decompressed to {} bytes, frame claims {claimed}",
-                    text.len()
-                ),
-            });
-        }
-        Ok(text)
+        zstd_frame::decompress(self.compressed).map_err(|error| SourceMapError::Decompress {
+            name: self.name.to_string(),
+            error,
+        })
     }
 }
 
@@ -250,27 +202,6 @@ mod tests {
         assert_eq!(
             parse(&bytes),
             Err(SourceMapError::PointerOutOfRange { index: 1 })
-        );
-    }
-
-    #[test]
-    fn refuses_a_frame_claiming_more_than_the_cap() {
-        // A bare zstd frame header (RFC 8878 section 3.1.1.1): the magic
-        // number, then a descriptor of 0xE0 (an 8-byte content size, single
-        // segment), then the size. No blocks follow; the size is read from
-        // the header alone, so the cap must trip before decompression starts.
-        let mut forged = vec![0x28, 0xB5, 0x2F, 0xFD, 0xE0];
-        forged.extend((1u64 << 40).to_le_bytes());
-        let file = SourceFile {
-            name: "index.ts",
-            compressed: &forged,
-        };
-        assert_eq!(
-            file.decompress(),
-            Err(SourceMapError::TooLarge {
-                name: "index.ts".to_string(),
-                claimed: 1 << 40
-            })
         );
     }
 }
