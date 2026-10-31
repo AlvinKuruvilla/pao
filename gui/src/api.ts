@@ -30,6 +30,32 @@ export interface ModuleSummary {
   sourcemap_size: number;
   /** `"688 bytes"`, `"entry at 0x…"` for linked bytecode, or null. */
   bytecode: string | null;
+  /** The library headers of a `napi` module; null for every other loader. */
+  native: NativeSummary | null;
+}
+
+export type NativeSummary =
+  | { state: "read"; format: string; images: NativeImage[] }
+  | { state: "unreadable"; error: string };
+
+/** One architecture slice; a library that is not universal has one. */
+export interface NativeImage {
+  /** Node's `process.arch` name: `arm64`, `x64`, `ia32`, `arm`. */
+  architecture: string;
+  /** Mach-O install name, ELF soname or PE export name. */
+  own_name: string | null;
+  /** Exports in the Node-API namespace, such as `napi_register_module_v1`. */
+  node_api_exports: string[];
+  libraries: NativeLibrary[];
+}
+
+export interface NativeLibrary {
+  name: string;
+  /** The last path component for macOS system libraries, else `name`. */
+  short_name: string;
+  /** `weak`, `re-exported`, `lazy`, `upward` or `delay-loaded`; null when
+   * the library is always loaded with the addon. */
+  kind: string | null;
 }
 
 export interface OpenedBinary {

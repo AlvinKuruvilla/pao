@@ -27,6 +27,10 @@ export function Details({ binary, file }: { binary: OpenedBinary; file: FileSumm
       rows.push(["Source map", `${module.sourcemap_size.toLocaleString()} bytes`]);
     }
     if (module.bytecode) rows.push(["Bytecode", module.bytecode]);
+    if (module.native?.state === "read") {
+      const architectures = module.native.images.map((image) => image.architecture);
+      rows.push(["Native", `${module.native.format}, ${architectures.join(", ")}`]);
+    }
   }
   return (
     <div className="details">

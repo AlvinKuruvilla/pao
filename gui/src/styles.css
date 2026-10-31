@@ -310,6 +310,41 @@ button:disabled {
   margin: 0 0 4px;
 }
 
+/* Native addon headers, in the content pane */
+
+.native {
+  padding: 10px;
+  overflow: auto;
+}
+
+.native table {
+  border-collapse: collapse;
+}
+
+.native th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: normal;
+  padding: 3px 16px 3px 0;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.native td {
+  padding: 3px 0;
+  word-break: break-all;
+}
+
+.native-links {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.native-warning {
+  color: #d7ba7d;
+}
+
 /* Welcome screen */
 
 .welcome {

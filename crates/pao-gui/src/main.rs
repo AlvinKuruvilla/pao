@@ -11,6 +11,9 @@
 //! Contents are sent one file at a time because a project can hold tens of
 //! megabytes, and the frontend only ever shows one file.
 //!
+//! The module table includes each native addon's headers
+//! ([`native::describe`]), read while the executable's bytes are at hand.
+//!
 //! The opened executable's bytes are dropped once the project is built:
 //! [`Project`] owns its contents, and everything else the frontend needs is
 //! copied into [`OpenedBinary`].
@@ -26,6 +29,7 @@ use std::sync::Mutex;
 use pao_core::flags;
 use pao_core::locate::{Located, locate};
 use pao_core::names;
+use pao_core::native;
 use pao_core::project::{self, Options, Project, Tree};
 use pao_core::version::{BunVersion, find_version};
 use serde::Serialize;
@@ -58,6 +62,70 @@ struct ModuleSummary {
     contents_size: u32,
     sourcemap_size: u32,
     bytecode: Option<String>,
+    /// The headers of a `napi` module's library; `None` for other loaders.
+    native: Option<NativeSummary>,
+}
+
+/// [`native::NativeLibrary`], or why its bytes did not read as one. Tagged
+/// with `state` so the frontend can switch on it.
+#[derive(Serialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+enum NativeSummary {
+    Read {
+        format: String,
+        images: Vec<ImageSummary>,
+    },
+    Unreadable {
+        error: String,
+    },
+}
+
+#[derive(Serialize)]
+struct ImageSummary {
+    architecture: String,
+    own_name: Option<String>,
+    node_api_exports: Vec<String>,
+    libraries: Vec<LibrarySummary>,
+}
+
+#[derive(Serialize)]
+struct LibrarySummary {
+    /// As the headers give it.
+    name: String,
+    /// [`native::Library::short_name`].
+    short_name: String,
+    kind: Option<&'static str>,
+}
+
+impl NativeSummary {
+    fn of(contents: &[u8]) -> Self {
+        match native::describe(contents) {
+            Ok(library) => NativeSummary::Read {
+                format: library.format.to_string(),
+                images: library
+                    .images
+                    .into_iter()
+                    .map(|image| ImageSummary {
+                        architecture: image.architecture,
+                        own_name: image.own_name,
+                        node_api_exports: image.node_api_exports,
+                        libraries: image
+                            .libraries
+                            .into_iter()
+                            .map(|library| LibrarySummary {
+                                short_name: library.short_name().to_string(),
+                                name: library.name,
+                                kind: library.kind,
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            },
+            Err(error) => NativeSummary::Unreadable {
+                error: error.to_string(),
+            },
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -218,9 +286,10 @@ fn module_summaries(located: &Located<'_>, version: &BunVersion<'_>) -> Vec<Modu
                         format!("{} bytes", bytecode.length)
                     }
                 });
+            let loader = names::loader(entry.loader, version);
             ModuleSummary {
                 name: module.name.to_string(),
-                loader: named(names::loader(entry.loader, version), entry.loader),
+                loader: named(loader, entry.loader),
                 module_format: entry
                     .module_format
                     .map(|value| named(names::module_format(value), value)),
@@ -232,6 +301,7 @@ fn module_summaries(located: &Located<'_>, version: &BunVersion<'_>) -> Vec<Modu
                 contents_size: entry.contents.length,
                 sourcemap_size: entry.sourcemap.length,
                 bytecode,
+                native: (loader == Some("napi")).then(|| NativeSummary::of(module.contents)),
             }
         })
         .collect()

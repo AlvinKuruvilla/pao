@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { exportTo, openBinary, type FileSummary, type OpenedBinary } from "./api";
+import { exportTo, openBinary, type FileSummary, type NativeSummary, type OpenedBinary } from "./api";
 import { FileTree, type FileTreeHandle } from "./FileTree";
 import { Viewer } from "./Viewer";
+import { Native } from "./Native";
 import { Details } from "./Details";
 import { QuickOpen } from "./QuickOpen";
 import { Welcome } from "./Welcome";
@@ -179,7 +180,11 @@ export function App() {
           />
         </aside>
         <section className="content">
-          {selected ? <Viewer file={selected} /> : <div className="placeholder">Select a file</div>}
+          {selected ? (
+            <FileView file={selected} native={binary.modules[selected.module]?.native ?? null} />
+          ) : (
+            <div className="placeholder">Select a file</div>
+          )}
         </section>
         {showDetails && (
           <aside className="inspector">
@@ -199,4 +204,11 @@ export function App() {
       )}
     </div>
   );
+}
+
+/** A native addon's headers in place of the binary placeholder; any other
+ * file in the editor. */
+function FileView({ file, native }: { file: FileSummary; native: NativeSummary | null }) {
+  if (native) return <Native file={file} native={native} />;
+  return <Viewer file={file} />;
 }
