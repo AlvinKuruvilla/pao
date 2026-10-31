@@ -82,8 +82,8 @@ type CommandResult<T> = Result<T, String>;
 fn open_binary(path: PathBuf, opened: State<'_, Opened>) -> CommandResult<OpenedBinary> {
     let shown = path.display();
     let bytes = fs::read(&path).map_err(|error| format!("cannot read {shown}: {error}"))?;
-    let located =
-        locate(&bytes).map_err(|error| format!("cannot find the Bun payload in {shown}: {error}"))?;
+    let located = locate(&bytes)
+        .map_err(|error| format!("cannot find the Bun payload in {shown}: {error}"))?;
     let version = find_version(&bytes, &located)
         .map_err(|error| format!("cannot identify the Bun release that built {shown}: {error}"))?;
     let file_name = path
@@ -115,13 +115,19 @@ fn open_binary(path: PathBuf, opened: State<'_, Opened>) -> CommandResult<Opened
             .collect(),
         warnings: project.warnings.iter().map(ToString::to_string).collect(),
     };
-    *opened.0.lock().expect("no command panics while holding the lock") = Some(project);
+    *opened
+        .0
+        .lock()
+        .expect("no command panics while holding the lock") = Some(project);
     Ok(summary)
 }
 
 #[tauri::command]
 fn read_file(path: String, opened: State<'_, Opened>) -> CommandResult<FileContents> {
-    let opened = opened.0.lock().expect("no command panics while holding the lock");
+    let opened = opened
+        .0
+        .lock()
+        .expect("no command panics while holding the lock");
     let project = opened.as_ref().ok_or("no executable is open")?;
     // Sorted by path, so a binary search finds it.
     let file = project
@@ -140,7 +146,10 @@ fn read_file(path: String, opened: State<'_, Opened>) -> CommandResult<FileConte
 /// `--force` equivalent, means an export can never overwrite anything.
 #[tauri::command]
 fn export_to(directory: PathBuf, opened: State<'_, Opened>) -> CommandResult<usize> {
-    let opened = opened.0.lock().expect("no command panics while holding the lock");
+    let opened = opened
+        .0
+        .lock()
+        .expect("no command panics while holding the lock");
     let project = opened.as_ref().ok_or("no executable is open")?;
     let shown = directory.display();
     if let Ok(mut entries) = fs::read_dir(&directory)
