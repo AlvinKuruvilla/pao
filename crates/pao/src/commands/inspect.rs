@@ -65,17 +65,11 @@ fn print(out: &mut dyn Write, located: &Located<'_>, version: BunVersion<'_>) ->
     let Located {
         layout,
         offsets,
-        payload,
+        payload: _,
         base,
         trailer_pos,
-        entries,
+        modules,
     } = located;
-    let name_of = |entry: &ModuleEntry| {
-        let bytes = payload
-            .get(entry.name)
-            .expect("locate checked every pointer");
-        std::str::from_utf8(bytes).expect("locate checked that names are UTF-8")
-    };
     let entry_point = offsets.entry_point_id as usize;
     let linked = offsets
         .flags
@@ -128,8 +122,8 @@ fn print(out: &mut dyn Write, located: &Located<'_>, version: BunVersion<'_>) ->
         out,
         "{}{}, entry point #{entry_point} {}",
         label("modules"),
-        grouped(entries.len() as u64),
-        paint(style::ENTRY_POINT, name_of(&entries[entry_point]))
+        grouped(modules.len() as u64),
+        paint(style::ENTRY_POINT, modules[entry_point].name)
     )?;
     writeln!(out)?;
 
@@ -142,7 +136,8 @@ fn print(out: &mut dyn Write, located: &Located<'_>, version: BunVersion<'_>) ->
         )
     )?;
     writeln!(out, "{}", paint(style::RULE, "-".repeat(78)))?;
-    for (index, entry) in entries.iter().enumerate() {
+    for (index, module) in modules.iter().enumerate() {
+        let entry = &module.entry;
         let offset = base + entry.contents.offset as usize;
         let (marker, name_style) = if index == entry_point {
             (paint(style::ENTRY_POINT, "* "), style::ENTRY_POINT)
@@ -155,7 +150,7 @@ fn print(out: &mut dyn Write, located: &Located<'_>, version: BunVersion<'_>) ->
             paint(style::DECIMAL, format!("{offset:<13}")),
             paint(style::HEX, format!("{offset:<#14x}")),
             paint(style::INDEX, format!("#{index}")),
-            paint(name_style, name_of(entry)),
+            paint(name_style, module.name),
         )?;
         writeln!(out, "{:27}{}", "", describe(entry, &version, *base, linked))?;
     }

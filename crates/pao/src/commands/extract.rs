@@ -109,17 +109,8 @@ type Plan = BTreeMap<PathBuf, Vec<u8>>;
 /// Each module's contents under `bundled/`, text converted to UTF-8.
 fn plan_bundled(located: &Located<'_>, version: &BunVersion<'_>) -> anyhow::Result<Plan> {
     let mut plan = Plan::new();
-    for entry in &located.entries {
-        let name = located
-            .payload
-            .get(entry.name)
-            .expect("locate checked every pointer");
-        let name = std::str::from_utf8(name).expect("locate checked that names are UTF-8");
-        let contents = located
-            .payload
-            .get(entry.contents)
-            .expect("locate checked every pointer");
-
+    for module in &located.modules {
+        let name = module.name;
         let relative = VIRTUAL_ROOTS
             .iter()
             .find_map(|root| name.strip_prefix(root))
@@ -131,8 +122,9 @@ fn plan_bundled(located: &Located<'_>, version: &BunVersion<'_>) -> anyhow::Resu
             .collect();
 
         let contents = to_utf8(
-            contents,
-            entry
+            module.contents,
+            module
+                .entry
                 .encoding
                 .and_then(|value| names::encoding(value, version)),
         )
@@ -150,16 +142,13 @@ fn plan_sources(located: &Located<'_>, stem: &str) -> anyhow::Result<Plan> {
     // them are needed before any is placed, because the deepest `..` decides
     // where the build directory sits.
     let mut files: BTreeMap<(usize, Vec<String>), (String, Vec<u8>)> = BTreeMap::new();
-    for entry in located
-        .entries
+    for module in located
+        .modules
         .iter()
-        .filter(|entry| entry.sourcemap.length > 0)
+        .filter(|module| !module.sourcemap.is_empty())
     {
-        let bytes = located
-            .payload
-            .get(entry.sourcemap)
-            .expect("locate checked every pointer");
-        let map = sourcemap::parse(bytes).context("decode a module's source map")?;
+        let map = sourcemap::parse(module.sourcemap)
+            .with_context(|| format!("decode the source map of module {}", module.name))?;
         for file in &map.files {
             let (up, rest) =
                 split_parents(file.name).with_context(|| format!("place source {}", file.name))?;

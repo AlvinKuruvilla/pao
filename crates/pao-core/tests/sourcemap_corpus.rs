@@ -56,10 +56,11 @@ fn matrix_source_maps_hold_the_fixture_sources() {
         let binary = fs::read(path).expect("matrix binaries are readable");
         let located = locate(&binary).expect("locate_corpus.rs checks these decode");
 
-        let maps: Vec<_> = located
-            .entries
+        let maps: Vec<&[u8]> = located
+            .modules
             .iter()
-            .filter(|entry| entry.sourcemap.length > 0)
+            .map(|module| module.sourcemap)
+            .filter(|sourcemap| !sourcemap.is_empty())
             .collect();
         if !embeds_source_map(bun_version) {
             if !maps.is_empty() {
@@ -69,7 +70,7 @@ fn matrix_source_maps_hold_the_fixture_sources() {
             }
             continue;
         }
-        let [entry] = maps[..] else {
+        let [bytes] = maps[..] else {
             failures.push(format!(
                 "{file_name}: {} modules have source maps, expected 1",
                 maps.len()
@@ -77,10 +78,6 @@ fn matrix_source_maps_hold_the_fixture_sources() {
             continue;
         };
 
-        let bytes = located
-            .payload
-            .get(entry.sourcemap)
-            .expect("locate checked every pointer");
         let map = match sourcemap::parse(bytes) {
             Ok(map) => map,
             Err(error) => {

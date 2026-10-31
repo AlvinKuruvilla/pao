@@ -73,12 +73,7 @@ fn matrix_binaries_decode_with_their_release_layout() {
             continue;
         }
 
-        let entry_point = located.entries[located.offsets.entry_point_id as usize];
-        let name = located
-            .payload
-            .get(entry_point.name)
-            .expect("locate checked every pointer");
-        let name = std::str::from_utf8(name).expect("locate checked names are UTF-8");
+        let name = located.modules[located.offsets.entry_point_id as usize].name;
         if !name.ends_with(&*file_name) {
             failures.push(format!("{file_name}: entry point named {name}"));
         }
@@ -123,6 +118,6 @@ fn extra_binary_decodes() {
     eprintln!(
         "Bun {version}, {:?}, {} modules",
         located.layout,
-        located.entries.len()
+        located.modules.len()
     );
 }

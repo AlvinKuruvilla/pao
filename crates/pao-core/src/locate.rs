@@ -18,8 +18,10 @@
 //!   Structural checks alone gave one decoding in each of the 110 binaries
 //!   from `tools/bun-matrix` (Bun 1.0.0–1.4.4) and in one large production
 //!   binary, both in this crate and in `tools/probe.py`.
-//! - **Eager entry table**: the checks read every entry anyway, so
-//!   [`Located::entries`] keeps them, 68 bytes each.
+//! - **Eager module table**: the checks read every entry anyway, so
+//!   [`Located::modules`] keeps each one with the slices it names. Callers
+//!   then read a module's name and bytes without re-checking pointers that
+//!   were already checked, at the cost of three slice references per module.
 
 use std::fmt;
 
@@ -51,7 +53,23 @@ pub struct Located<'a> {
     /// File offset of the trailer.
     pub trailer_pos: usize,
     /// The module table in file order. `offsets.entry_point_id` indexes it.
-    pub entries: Vec<ModuleEntry>,
+    pub modules: Vec<Module<'a>>,
+}
+
+/// One module table entry and the payload bytes it names.
+///
+/// The slices were cut by [`locate`] when it checked the entry, so reading
+/// them cannot fail. Pointers the slices do not cover (bytecode, module info)
+/// are still in `entry`, already checked to lie within the payload.
+#[derive(Debug, Clone, Copy)]
+pub struct Module<'a> {
+    /// The raw entry. Its pointer offsets locate the slices in the file.
+    pub entry: ModuleEntry,
+    /// Non-empty, at most 4,096 bytes, no control characters.
+    pub name: &'a str,
+    pub contents: &'a [u8],
+    /// Empty when the module has no source map.
+    pub sourcemap: &'a [u8],
 }
 
 /// Why [`locate`] found no single payload.
@@ -141,19 +159,12 @@ fn try_layout(binary: &[u8], trailer_pos: usize, layout: LayoutVersion) -> Optio
         return None;
     }
 
-    let entries = table
+    let modules = table
         .chunks_exact(entry_size)
         .map(|row| {
             let entry = parse_entry(row, layout)?;
-            let pointers = [
-                Some(entry.name),
-                Some(entry.contents),
-                Some(entry.sourcemap),
-                entry.bytecode,
-                entry.module_info,
-                entry.bytecode_origin_path,
-            ];
-            for pointer in pointers.into_iter().flatten() {
+            let optional = [entry.bytecode, entry.module_info, entry.bytecode_origin_path];
+            for pointer in optional.into_iter().flatten() {
                 payload.get(pointer)?;
             }
 
@@ -164,7 +175,12 @@ fn try_layout(binary: &[u8], trailer_pos: usize, layout: LayoutVersion) -> Optio
                 return None;
             }
 
-            Some(entry)
+            Some(Module {
+                entry,
+                name,
+                contents: payload.get(entry.contents)?,
+                sourcemap: payload.get(entry.sourcemap)?,
+            })
         })
         .collect::<Option<Vec<_>>>()?;
 
@@ -174,7 +190,7 @@ fn try_layout(binary: &[u8], trailer_pos: usize, layout: LayoutVersion) -> Optio
         payload,
         base,
         trailer_pos,
-        entries,
+        modules,
     })
 }
 

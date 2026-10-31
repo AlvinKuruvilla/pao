@@ -51,9 +51,8 @@ As a library:
 ```rust
 let binary = std::fs::read("app")?;
 let located = pao_core::locate::locate(&binary)?;
-for entry in &located.entries {
-    let name = located.payload.get(entry.name).expect("locate checked every pointer");
-    println!("{}", String::from_utf8_lossy(name));
+for module in &located.modules {
+    println!("{}: {} bytes", module.name, module.contents.len());
 }
 ```
 

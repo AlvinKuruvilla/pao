@@ -75,12 +75,8 @@ fn loader_names_match_the_release() {
         }
 
         let mut extensions = Vec::new();
-        for entry in &located.entries {
-            let name = located
-                .payload
-                .get(entry.name)
-                .expect("locate checked every pointer");
-            let name = std::str::from_utf8(name).expect("locate checked that names are UTF-8");
+        for module in &located.modules {
+            let name = module.name;
             // From 1.0.36 the entry module is named after the output file,
             // `1.2.0-loaders`, whose dots are not an extension; it is the
             // bundled JavaScript.
@@ -95,11 +91,11 @@ fn loader_names_match_the_release() {
             extensions.push(extension);
 
             let want = expected_loader(extension, version.release());
-            let got = names::loader(entry.loader, &version).unwrap_or("<undefined>");
+            let got = names::loader(module.entry.loader, &version).unwrap_or("<undefined>");
             if got != want {
                 failures.push(format!(
                     "{file_name}: {name} has loader {} ({got}), want {want}",
-                    entry.loader
+                    module.entry.loader
                 ));
             }
         }

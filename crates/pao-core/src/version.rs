@@ -235,7 +235,7 @@ mod tests {
             payload: Payload::new(&binary[base..trailer_pos]),
             base,
             trailer_pos,
-            entries: Vec::new(),
+            modules: Vec::new(),
         }
     }
 
