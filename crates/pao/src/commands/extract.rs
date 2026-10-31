@@ -1,81 +1,18 @@
-//! `pao extract`: writes the embedded modules, and the original sources their
-//! source maps carry, to a directory.
+//! `pao extract`: writes the files [`pao_core::project`] unpacks an
+//! executable into, `bundled/` and `sources/`, to a directory.
 //!
-//! The output has two trees:
-//!
-//! ```text
-//! app.extracted/
-//!   bundled/   each module's contents, at its name under Bun's virtual root
-//!   sources/   each original file from the modules' source maps
-//! ```
-//!
-//! `sources/` is the readable one when it exists: the files as they were
-//! before bundling. `bundled/` is what the executable runs, and the only tree
-//! for a build without `--sourcemap`.
-//!
-//! Every output path is computed and checked before anything is written, so a
-//! refused name leaves no partial extraction behind.
-//!
-//! # Source paths
-//!
-//! Source map names are relative to the directory Bun was run from, and that
-//! directory is not recorded anywhere in the executable (`docs/format.md`
-//! section 6.1). A project that imports from outside it gets names such as
-//! `../shared.ts`. Those are kept, not clamped: `sources/` is rooted at the
-//! highest directory any name reaches, and the directories in between, whose
-//! real names are lost, are named after the executable. For `app` built from
-//! `web/` with `../shared.ts` and `index.ts`:
-//!
-//! ```text
-//! sources/
-//!   shared.ts        ../shared.ts
-//!   app/
-//!     index.ts       index.ts; the build directory, really named web/
-//! ```
-//!
-//! Relative imports between the files still resolve. One level up names the
-//! build directory `app`; each further level adds `app.up1`, `app.up2`, ... above
-//! it.
-//!
-//! # Trade-offs
-//!
-//! - **Refusing unsafe names**: a module or source name that is absolute after
-//!   its prefix is removed, or that leaves its root, fails the whole run
-//!   instead of being rewritten. Bun does not write such names, so one is
-//!   either a format change or a crafted executable, and a quiet rename would
-//!   hide both.
-//! - **Readable over byte-exact**: by default the output is changed so that
-//!   it opens in an editor, and is then not what the executable stores.
-//!   `pao inspect` gives the offsets for anyone who needs the stored bytes.
-//!   - `latin1` and `utf16` modules are converted to UTF-8.
-//!   - A `js` module whose name has no JavaScript extension gets `.js`. Bun
-//!     names the entry module after the executable, `cli` or `app.exe`, and
-//!     `app.exe` becomes `app.js` so a build for any platform extracts alike.
-//!     The loader decides, not the name: a `file` asset named `.js` is left
-//!     alone, and so is everything that is not code.
-//!   - A module named `.zst` that is a zstd frame is decompressed and loses
-//!     the suffix, `README.md.zst` to `README.md`. Bun stores files
-//!     byte for byte, so this compression is the app's own; one large
-//!     Bun 1.4.4 executable embeds 127 such files, nearly all text.
-//!     `--no-decompress` keeps them as stored. One that fails to decompress is
-//!     written as stored, with a warning.
+//! The module docs of `pao_core::project` describe the trees, how source
+//! paths outside the build directory are placed, and how files are made
+//! readable. This command only adds the directory handling.
 
-use std::collections::BTreeMap;
-use std::collections::btree_map::Entry;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, bail, ensure};
-use pao_core::locate::{Located, locate};
-use pao_core::names;
-use pao_core::sourcemap;
-use pao_core::version::{BunVersion, find_version};
-use pao_core::zstd_frame;
-
-/// Prefixes of module names, from `docs/format.md` section 6. A name with
-/// none of them still extracts, from its first path segment.
-const VIRTUAL_ROOTS: [&str; 3] = ["/$bunfs/root/", "B:/~BUN/root/", "compiled://root/"];
+use anyhow::{Context, ensure};
+use pao_core::locate::locate;
+use pao_core::project::{self, Options, Tree};
+use pao_core::version::find_version;
 
 pub fn run(
     binary: &Path,
@@ -89,234 +26,45 @@ pub fn run(
     let version = find_version(&bytes, &located)
         .with_context(|| format!("identify the Bun release that built {}", binary.display()))?;
 
-    // Not `file_stem`: executables are often named with dots, `app-1.4.2`,
-    // and only Windows' `.exe` is an extension Bun adds.
-    let file_name = binary
+    let executable_name = binary
         .file_name()
         .map_or("build".into(), |name| name.to_string_lossy());
-    let stem = file_name.strip_suffix(".exe").unwrap_or(&file_name);
+    let project = project::build(&located, &version, &executable_name, Options { decompress })
+        .with_context(|| format!("unpack {}", binary.display()))?;
+
+    let stem = executable_name
+        .strip_suffix(".exe")
+        .unwrap_or(&executable_name);
     let output = output.map_or_else(
         || PathBuf::from(format!("{stem}.extracted")),
         Path::to_path_buf,
     );
 
-    let bundled = plan_bundled(&located, &version, decompress)?;
-    let sources = plan_sources(&located, stem)?;
-
     prepare_output(&output, force)?;
-    for (path, contents) in bundled.iter().chain(&sources) {
-        write_new(&output.join(path), contents, force)?;
+    for file in &project.files {
+        // Every segment was checked by `project::build`, so the join stays
+        // inside `output`.
+        let path: PathBuf = std::iter::once(output.as_path())
+            .chain(file.path.split('/').map(Path::new))
+            .collect();
+        write_new(&path, &file.contents, force)?;
     }
+    for warning in &project.warnings {
+        eprintln!("warning: {warning}");
+    }
+
+    let count = |tree| project.files.iter().filter(|file| file.tree == tree).count();
+    let sources = count(Tree::Sources);
     println!(
-        "wrote {} module(s) to {} and {} source file(s) to {}",
-        bundled.len(),
+        "wrote {} module(s) to {} and {sources} source file(s) to {}",
+        count(Tree::Bundled),
         output.join("bundled").display(),
-        sources.len(),
         output.join("sources").display(),
     );
-    if sources.is_empty() {
+    if sources == 0 {
         println!("no module has a source map, so only the bundled code was extracted");
     }
     Ok(())
-}
-
-/// Output paths, relative to the output directory, and their contents. A map
-/// so that two names landing on one path are caught before writing.
-type Plan = BTreeMap<PathBuf, Vec<u8>>;
-
-/// Each module's contents under `bundled/`, made readable as the module docs
-/// describe.
-fn plan_bundled(
-    located: &Located<'_>,
-    version: &BunVersion<'_>,
-    decompress: bool,
-) -> anyhow::Result<Plan> {
-    let mut plan = Plan::new();
-    for module in &located.modules {
-        let name = module.name;
-        let relative = VIRTUAL_ROOTS
-            .iter()
-            .find_map(|root| name.strip_prefix(root))
-            .unwrap_or(name);
-        let mut segments =
-            safe_segments(relative).with_context(|| format!("place module {name}"))?;
-        let file_name = segments
-            .last_mut()
-            .expect("safe_segments refuses empty names");
-
-        let mut contents = to_utf8(
-            module.contents,
-            module
-                .entry
-                .encoding
-                .and_then(|value| names::encoding(value, version)),
-        )
-        .with_context(|| format!("convert module {name} to UTF-8"))?;
-
-        if names::loader(module.entry.loader, version) == Some("js") {
-            if ![".js", ".mjs", ".cjs"]
-                .iter()
-                .any(|ext| file_name.ends_with(ext))
-            {
-                let base = file_name.strip_suffix(".exe").unwrap_or(file_name);
-                *file_name = format!("{base}.js");
-            }
-        } else if decompress
-            && let Some(base) = file_name
-                .strip_suffix(".zst")
-                .filter(|base| !base.is_empty())
-            && contents.starts_with(&zstd_frame::MAGIC)
-        {
-            match zstd_frame::decompress(&contents) {
-                Ok(decompressed) => {
-                    contents = decompressed;
-                    *file_name = base.to_string();
-                }
-                Err(error) => eprintln!("warning: {name}: {error}; written as stored"),
-            }
-        }
-
-        let path: PathBuf = ["bundled".to_string()]
-            .into_iter()
-            .chain(segments)
-            .collect();
-        if plan.insert(path.clone(), contents).is_some() {
-            bail!(
-                "two modules land on {}, the second being {name}; extracting both would lose one",
-                path.display()
-            );
-        }
-    }
-    Ok(plan)
-}
-
-/// The original files from every module's source map, under `sources/`.
-fn plan_sources(located: &Located<'_>, stem: &str) -> anyhow::Result<Plan> {
-    // Each name split into how many `..` it starts with and the rest. All of
-    // them are needed before any is placed, because the deepest `..` decides
-    // where the build directory sits.
-    let mut files: BTreeMap<(usize, Vec<String>), (String, Vec<u8>)> = BTreeMap::new();
-    for module in located
-        .modules
-        .iter()
-        .filter(|module| !module.sourcemap.is_empty())
-    {
-        let map = sourcemap::parse(module.sourcemap)
-            .with_context(|| format!("decode the source map of module {}", module.name))?;
-        for file in &map.files {
-            let (up, rest) =
-                split_parents(file.name).with_context(|| format!("place source {}", file.name))?;
-            let text = file.decompress().context("decompress a source file")?;
-            // Code splitting can list one file in several chunks' maps.
-            match files.entry((up, rest)) {
-                Entry::Vacant(slot) => {
-                    slot.insert((file.name.to_string(), text));
-                }
-                Entry::Occupied(slot) => ensure!(
-                    slot.get().1 == text,
-                    "two source maps list {} with different contents",
-                    file.name
-                ),
-            }
-        }
-    }
-
-    let depth = files.keys().map(|(up, _)| *up).max().unwrap_or(0);
-    // The directories from `sources/` down to the build directory, outermost
-    // first: `app.up1/app` for a depth of 2.
-    let invented: Vec<String> = (0..depth)
-        .rev()
-        .map(|level| match level {
-            0 => stem.to_string(),
-            level => format!("{stem}.up{level}"),
-        })
-        .collect();
-
-    let mut plan = Plan::new();
-    for ((up, rest), (name, text)) in files {
-        let path: PathBuf = ["sources"]
-            .into_iter()
-            .map(String::from)
-            .chain(invented[..depth - up].iter().cloned())
-            .chain(rest)
-            .collect();
-        if plan.insert(path.clone(), text).is_some() {
-            bail!(
-                "source {name} lands on {}, as another file does; the names that stand in for \
-                 directories above the build directory collide with a real one",
-                path.display()
-            );
-        }
-    }
-    Ok(plan)
-}
-
-/// `name`'s segments, refusing anything that could leave the directory it is
-/// joined to: an absolute path, a drive, `..`, or a segment the platform would
-/// read as a separator.
-fn safe_segments(name: &str) -> anyhow::Result<Vec<String>> {
-    let (up, rest) = split_parents(name)?;
-    ensure!(up == 0, "{name} climbs out of its directory with `..`");
-    ensure!(!rest.is_empty(), "the name is empty");
-    Ok(rest)
-}
-
-/// Splits `name` into the number of `..` it starts with and the segments
-/// after them, with `.` and empty segments dropped. A `..` later in the name
-/// is refused rather than resolved: Bun's relative paths never have one, so it
-/// would mean the name is not what this code assumes.
-fn split_parents(name: &str) -> anyhow::Result<(usize, Vec<String>)> {
-    ensure!(!name.starts_with('/'), "{name} is an absolute path");
-    let mut up = 0;
-    let mut rest = Vec::new();
-    for segment in name.split('/') {
-        match segment {
-            "" | "." => {}
-            ".." if rest.is_empty() => up += 1,
-            ".." => bail!("{name} has `..` after its first segments"),
-            segment => {
-                ensure!(
-                    !segment.contains(['\\', '\0'])
-                        && !(rest.is_empty() && up == 0 && segment.ends_with(':')),
-                    "{name} has a segment, {segment:?}, that is not a plain file name"
-                );
-                rest.push(segment.to_string());
-            }
-        }
-    }
-    Ok((up, rest))
-}
-
-/// `contents` as UTF-8 for the text encodings, unchanged for `binary` and for
-/// layouts without the field.
-fn to_utf8(contents: &[u8], encoding: Option<&str>) -> anyhow::Result<Vec<u8>> {
-    Ok(match encoding {
-        // Latin-1 maps each byte to the code point of the same value.
-        Some("latin1") => contents
-            .iter()
-            .map(|&byte| char::from(byte))
-            .collect::<String>()
-            .into_bytes(),
-        // Bun 1.4.1+ stores UTF-16 code units little-endian; checked on every
-        // `utf16` module of one 1.4.4 executable.
-        Some("utf16") => {
-            ensure!(
-                contents.len().is_multiple_of(2),
-                "UTF-16 contents have an odd length, {}",
-                contents.len()
-            );
-            let units = contents
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|&pair| u16::from_le_bytes(pair));
-            char::decode_utf16(units)
-                .collect::<Result<String, _>>()
-                .context("contents are not valid UTF-16")?
-                .into_bytes()
-        }
-        _ => contents.to_vec(),
-    })
 }
 
 /// Creates `output`, or with `force` accepts one that already has files.
@@ -334,12 +82,12 @@ fn prepare_output(output: &Path, force: bool) -> anyhow::Result<()> {
 }
 
 /// Writes `path`, failing if it exists unless `force`. Without `force` this
-/// also catches two plan paths that differ only in case on a case-insensitive
-/// file system, which the plan's own check cannot see.
+/// also catches two project paths that differ only in case on a
+/// case-insensitive file system, which `project::build` cannot see.
 fn write_new(path: &Path, contents: &[u8], force: bool) -> anyhow::Result<()> {
     let parent = path
         .parent()
-        .expect("plan paths are under the output directory");
+        .expect("project paths have at least two segments");
     fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
     let mut options = OpenOptions::new();
     options.write(true);
@@ -353,45 +101,4 @@ fn write_new(path: &Path, contents: &[u8], force: bool) -> anyhow::Result<()> {
         .with_context(|| format!("create {}", path.display()))?;
     file.write_all(contents)
         .with_context(|| format!("write {}", path.display()))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn splits_leading_parents() {
-        assert_eq!(
-            split_parents("../../lib/a.ts").unwrap(),
-            (2, vec!["lib".to_string(), "a.ts".to_string()])
-        );
-        assert_eq!(
-            split_parents("./src//b.ts").unwrap(),
-            (0, vec!["src".to_string(), "b.ts".to_string()])
-        );
-    }
-
-    #[test]
-    fn refuses_names_that_escape() {
-        for name in ["/etc/passwd", "src/../../x", "C:/x", "a\\..\\b", "a\0b"] {
-            assert!(split_parents(name).is_err(), "{name} was accepted");
-        }
-        assert!(safe_segments("../x").is_err());
-    }
-
-    #[test]
-    fn converts_text_encodings() {
-        assert_eq!(
-            to_utf8(&[0x63, 0xE9], Some("latin1")).unwrap(),
-            "cé".as_bytes()
-        );
-        assert_eq!(
-            to_utf8(&[0x63, 0x00, 0xE9, 0x00], Some("utf16")).unwrap(),
-            "cé".as_bytes()
-        );
-        assert_eq!(
-            to_utf8(&[0xFF, 0x00], Some("binary")).unwrap(),
-            [0xFF, 0x00]
-        );
-    }
 }
