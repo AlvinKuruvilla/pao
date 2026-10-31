@@ -11,7 +11,8 @@ version. One scanner covers every platform and every release tested.
 
 - **`pao-core`**: locates the payload and decodes the module table. Done for
   the four layouts below.
-- **`pao` CLI**: `inspect` and `extract` exist but are not implemented yet.
+- **`pao` CLI**: `inspect` prints the payload summary and module table.
+  `extract` exists but is not implemented yet.
 - **GUI** (Tauri): not started.
 
 ## Supported Bun releases
