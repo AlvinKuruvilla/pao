@@ -42,12 +42,23 @@ fn matrix_binaries_decode_with_their_release_layout() {
         .collect();
     paths.sort();
     // Catches an empty or wrong directory. 110 is the count built on 2026-10-31.
-    assert_eq!(paths.len(), 110, "unexpected binary count in {}", dir.display());
+    assert_eq!(
+        paths.len(),
+        110,
+        "unexpected binary count in {}",
+        dir.display()
+    );
 
     let mut failures = Vec::new();
     for path in &paths {
-        let file_name = path.file_name().expect("read_dir yields named paths").to_string_lossy();
-        let bun_version = file_name.split('-').next().expect("split yields at least one piece");
+        let file_name = path
+            .file_name()
+            .expect("read_dir yields named paths")
+            .to_string_lossy();
+        let bun_version = file_name
+            .split('-')
+            .next()
+            .expect("split yields at least one piece");
         let binary = fs::read(path).expect("matrix binaries are readable");
 
         let located = match locate(&binary) {
@@ -63,7 +74,10 @@ fn matrix_binaries_decode_with_their_release_layout() {
         }
 
         let entry_point = located.entries[located.offsets.entry_point_id as usize];
-        let name = located.payload.get(entry_point.name).expect("locate checked every pointer");
+        let name = located
+            .payload
+            .get(entry_point.name)
+            .expect("locate checked every pointer");
         let name = std::str::from_utf8(name).expect("locate checked names are UTF-8");
         if !name.ends_with(&*file_name) {
             failures.push(format!("{file_name}: entry point named {name}"));
@@ -80,13 +94,21 @@ fn matrix_binaries_decode_with_their_release_layout() {
                 if let Some(raw) = located.offsets.flags
                     && raw & !flags::defined(&version) != 0
                 {
-                    failures.push(format!("{file_name}: flags {raw:#x} set bits Bun {version} does not define"));
+                    failures.push(format!(
+                        "{file_name}: flags {raw:#x} set bits Bun {version} does not define"
+                    ));
                 }
             }
             Err(error) => failures.push(format!("{file_name}: {error}")),
         }
     }
-    assert!(failures.is_empty(), "{} of {} failed:\n{}", failures.len(), paths.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} of {} failed:\n{}",
+        failures.len(),
+        paths.len(),
+        failures.join("\n")
+    );
 }
 
 #[test]
@@ -98,5 +120,9 @@ fn extra_binary_decodes() {
     let binary = fs::read(path).expect("PAO_EXTRA_BINARY is a readable file");
     let located = locate(&binary).unwrap_or_else(|error| panic!("{error}"));
     let version = find_version(&binary, &located).unwrap_or_else(|error| panic!("{error}"));
-    eprintln!("Bun {version}, {:?}, {} modules", located.layout, located.entries.len());
+    eprintln!(
+        "Bun {version}, {:?}, {} modules",
+        located.layout,
+        located.entries.len()
+    );
 }

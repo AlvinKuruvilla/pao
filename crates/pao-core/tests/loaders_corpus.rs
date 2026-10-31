@@ -51,14 +51,23 @@ fn loader_names_match_the_release() {
         .collect();
     paths.sort();
     // One binary per Bun release in the matrix, 1.0.0 to 1.4.4.
-    assert_eq!(paths.len(), 14, "unexpected binary count in {}", dir.display());
+    assert_eq!(
+        paths.len(),
+        14,
+        "unexpected binary count in {}",
+        dir.display()
+    );
 
     let mut failures = Vec::new();
     for path in &paths {
-        let file_name = path.file_name().expect("read_dir yields named paths").to_string_lossy();
+        let file_name = path
+            .file_name()
+            .expect("read_dir yields named paths")
+            .to_string_lossy();
         let binary = fs::read(path).expect("fixture binaries are readable");
         let located = locate(&binary).unwrap_or_else(|error| panic!("{file_name}: {error}"));
-        let version = find_version(&binary, &located).unwrap_or_else(|error| panic!("{file_name}: {error}"));
+        let version =
+            find_version(&binary, &located).unwrap_or_else(|error| panic!("{file_name}: {error}"));
         let numbers = format!("{}.{}.{}", version.major, version.minor, version.patch);
         if file_name.trim_end_matches("-loaders") != numbers {
             failures.push(format!("{file_name}: runtime says Bun {version}"));
@@ -67,12 +76,17 @@ fn loader_names_match_the_release() {
 
         let mut extensions = Vec::new();
         for entry in &located.entries {
-            let name = located.payload.get(entry.name).expect("locate checked every pointer");
+            let name = located
+                .payload
+                .get(entry.name)
+                .expect("locate checked every pointer");
             let name = std::str::from_utf8(name).expect("locate checked that names are UTF-8");
             // From 1.0.36 the entry module is named after the output file,
             // `1.2.0-loaders`, whose dots are not an extension; it is the
             // bundled JavaScript.
-            let base_name = name.rsplit_once('/').map_or(name, |(_, base_name)| base_name);
+            let base_name = name
+                .rsplit_once('/')
+                .map_or(name, |(_, base_name)| base_name);
             let extension = match base_name.rsplit_once('.') {
                 _ if base_name == file_name => "js",
                 Some((_, extension)) => extension,
@@ -83,7 +97,10 @@ fn loader_names_match_the_release() {
             let want = expected_loader(extension, version.release());
             let got = names::loader(entry.loader, &version).unwrap_or("<undefined>");
             if got != want {
-                failures.push(format!("{file_name}: {name} has loader {} ({got}), want {want}", entry.loader));
+                failures.push(format!(
+                    "{file_name}: {name} has loader {} ({got}), want {want}",
+                    entry.loader
+                ));
             }
         }
 
@@ -94,5 +111,10 @@ fn loader_names_match_the_release() {
             }
         }
     }
-    assert!(failures.is_empty(), "{} failures:\n{}", failures.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} failures:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 }

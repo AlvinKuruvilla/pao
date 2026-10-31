@@ -46,9 +46,17 @@ enum Command {
 }
 
 fn main() -> anyhow::Result<()> {
-    let Cli { command, color, no_pager } = Cli::parse();
+    let Cli {
+        command,
+        color,
+        no_pager,
+    } = Cli::parse();
     match command {
         Command::Inspect { binary } => commands::inspect::run(&binary, color, no_pager),
-        Command::Extract { binary, output, force } => commands::extract::run(&binary, output.as_deref(), force),
+        Command::Extract {
+            binary,
+            output,
+            force,
+        } => commands::extract::run(&binary, output.as_deref(), force),
     }
 }

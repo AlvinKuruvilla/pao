@@ -23,8 +23,8 @@ use crate::output::{Color, with_output};
 
 pub fn run(binary: &Path, color: Color, no_pager: bool) -> anyhow::Result<()> {
     let bytes = fs::read(binary).with_context(|| format!("read {}", binary.display()))?;
-    let located = locate(&bytes)
-        .with_context(|| format!("find the Bun payload in {}", binary.display()))?;
+    let located =
+        locate(&bytes).with_context(|| format!("find the Bun payload in {}", binary.display()))?;
     let version = find_version(&bytes, &located)
         .with_context(|| format!("identify the Bun release that built {}", binary.display()))?;
     with_output(color, no_pager, |out| print(out, &located, version))
@@ -62,9 +62,18 @@ fn paint(style: anstyle::Style, text: impl Display) -> String {
 
 /// Writes the inspection of `located`, which `version` built.
 fn print(out: &mut dyn Write, located: &Located<'_>, version: BunVersion<'_>) -> io::Result<()> {
-    let Located { layout, offsets, payload, base, trailer_pos, entries } = located;
+    let Located {
+        layout,
+        offsets,
+        payload,
+        base,
+        trailer_pos,
+        entries,
+    } = located;
     let name_of = |entry: &ModuleEntry| {
-        let bytes = payload.get(entry.name).expect("locate checked every pointer");
+        let bytes = payload
+            .get(entry.name)
+            .expect("locate checked every pointer");
         std::str::from_utf8(bytes).expect("locate checked that names are UTF-8")
     };
     let entry_point = offsets.entry_point_id as usize;
@@ -92,9 +101,16 @@ fn print(out: &mut dyn Write, located: &Located<'_>, version: BunVersion<'_>) ->
         let mut parts: Vec<String> = flags::names(raw, &version).map(str::to_string).collect();
         let undefined = raw & !flags::defined(&version);
         if undefined != 0 {
-            parts.push(paint(style::UNDEFINED, format!("{undefined:#x} not defined in Bun {version}")));
+            parts.push(paint(
+                style::UNDEFINED,
+                format!("{undefined:#x} not defined in Bun {version}"),
+            ));
         }
-        let parts = if parts.is_empty() { paint(style::LABEL, "none set") } else { parts.join(", ") };
+        let parts = if parts.is_empty() {
+            paint(style::LABEL, "none set")
+        } else {
+            parts.join(", ")
+        };
         writeln!(out, "{}{raw:#x}: {parts}", label("flags"))?;
     }
     if linked {
@@ -102,7 +118,10 @@ fn print(out: &mut dyn Write, located: &Located<'_>, version: BunVersion<'_>) ->
             out,
             "{}{}",
             label("bytecode"),
-            paint(style::BYTECODE, "linked: modules share one payload, so rows give each entry, not a size")
+            paint(
+                style::BYTECODE,
+                "linked: modules share one payload, so rows give each entry, not a size"
+            )
         )?;
     }
     writeln!(
@@ -114,7 +133,14 @@ fn print(out: &mut dyn Write, located: &Located<'_>, version: BunVersion<'_>) ->
     )?;
     writeln!(out)?;
 
-    writeln!(out, "{}", paint(style::HEADER, format!("{:<13}{:<14}DESCRIPTION", "DECIMAL", "HEXADECIMAL")))?;
+    writeln!(
+        out,
+        "{}",
+        paint(
+            style::HEADER,
+            format!("{:<13}{:<14}DESCRIPTION", "DECIMAL", "HEXADECIMAL")
+        )
+    )?;
     writeln!(out, "{}", paint(style::RULE, "-".repeat(78)))?;
     for (index, entry) in entries.iter().enumerate() {
         let offset = base + entry.contents.offset as usize;
@@ -134,7 +160,12 @@ fn print(out: &mut dyn Write, located: &Located<'_>, version: BunVersion<'_>) ->
         writeln!(out, "{:27}{}", "", describe(entry, &version, *base, linked))?;
     }
     writeln!(out)?;
-    writeln!(out, "{} {}", paint(style::ENTRY_POINT, "*"), paint(style::LABEL, "entry point"))
+    writeln!(
+        out,
+        "{} {}",
+        paint(style::ENTRY_POINT, "*"),
+        paint(style::LABEL, "entry point")
+    )
 }
 
 /// `js, esm, latin1, server, 1,244 bytes, bytecode 688 bytes`: the entry's
@@ -143,7 +174,10 @@ fn describe(entry: &ModuleEntry, version: &BunVersion<'_>, base: usize, linked: 
     // An undefined value is shown as a number, never given a name borrowed
     // from another release.
     let undefined = |field: &str, value: u8| {
-        paint(style::UNDEFINED, format!("{field} {value} (not defined in Bun {version})"))
+        paint(
+            style::UNDEFINED,
+            format!("{field} {value} (not defined in Bun {version})"),
+        )
     };
     let loader = match names::loader(entry.loader, version) {
         Some(name @ ("js" | "jsx" | "ts" | "tsx")) => paint(style::SOURCE, name),
@@ -160,7 +194,10 @@ fn describe(entry: &ModuleEntry, version: &BunVersion<'_>, base: usize, linked: 
         });
     }
     if let Some(value) = entry.encoding {
-        parts.push(names::encoding(value, version).map_or_else(|| undefined("encoding", value), str::to_string));
+        parts.push(
+            names::encoding(value, version)
+                .map_or_else(|| undefined("encoding", value), str::to_string),
+        );
     }
     if let Some(value) = entry.side {
         parts.push(names::side(value).map_or_else(|| undefined("side", value), str::to_string));
@@ -169,21 +206,33 @@ fn describe(entry: &ModuleEntry, version: &BunVersion<'_>, base: usize, linked: 
     parts.push(format!("{} bytes", grouped(entry.contents.length.into())));
     // Bun writes an empty pointer for "none".
     if entry.sourcemap.length > 0 {
-        parts.push(format!("source map {} bytes", grouped(entry.sourcemap.length.into())));
+        parts.push(format!(
+            "source map {} bytes",
+            grouped(entry.sourcemap.length.into())
+        ));
     }
     match entry.bytecode {
         Some(bytecode) if bytecode.length > 0 && linked => {
-            parts.push(paint(style::BYTECODE, format!("bytecode entry at {:#x}", base + bytecode.offset as usize)));
+            parts.push(paint(
+                style::BYTECODE,
+                format!("bytecode entry at {:#x}", base + bytecode.offset as usize),
+            ));
         }
         Some(bytecode) if bytecode.length > 0 => {
-            parts.push(paint(style::BYTECODE, format!("bytecode {} bytes", grouped(bytecode.length.into()))));
+            parts.push(paint(
+                style::BYTECODE,
+                format!("bytecode {} bytes", grouped(bytecode.length.into())),
+            ));
         }
         _ => {}
     }
     if let Some(module_info) = entry.module_info
         && module_info.length > 0
     {
-        parts.push(format!("module info {} bytes", grouped(module_info.length.into())));
+        parts.push(format!(
+            "module info {} bytes",
+            grouped(module_info.length.into())
+        ));
     }
     parts.join(", ")
 }

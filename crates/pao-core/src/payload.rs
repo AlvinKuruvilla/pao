@@ -13,7 +13,9 @@ pub struct Payload<'a>(&'a [u8]);
 // The derived impl would print every byte of the payload.
 impl std::fmt::Debug for Payload<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Payload").field("len", &self.0.len()).finish()
+        f.debug_struct("Payload")
+            .field("len", &self.0.len())
+            .finish()
     }
 }
 

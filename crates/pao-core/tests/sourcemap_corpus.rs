@@ -35,29 +35,52 @@ fn matrix_source_maps_hold_the_fixture_sources() {
     paths.sort();
     // 14 releases x 3 targets, less the six cross-compiles 1.0.0 to 1.1.0
     // cannot do. Counted on 2026-10-31.
-    assert_eq!(paths.len(), 36, "unexpected --sourcemap binary count in {}", dir.display());
+    assert_eq!(
+        paths.len(),
+        36,
+        "unexpected --sourcemap binary count in {}",
+        dir.display()
+    );
 
     let mut failures = Vec::new();
     let mut checked = 0;
     for path in &paths {
-        let file_name = path.file_name().expect("read_dir yields named paths").to_string_lossy();
-        let bun_version = file_name.split('-').next().expect("split yields at least one piece");
+        let file_name = path
+            .file_name()
+            .expect("read_dir yields named paths")
+            .to_string_lossy();
+        let bun_version = file_name
+            .split('-')
+            .next()
+            .expect("split yields at least one piece");
         let binary = fs::read(path).expect("matrix binaries are readable");
         let located = locate(&binary).expect("locate_corpus.rs checks these decode");
 
-        let maps: Vec<_> = located.entries.iter().filter(|entry| entry.sourcemap.length > 0).collect();
+        let maps: Vec<_> = located
+            .entries
+            .iter()
+            .filter(|entry| entry.sourcemap.length > 0)
+            .collect();
         if !embeds_source_map(bun_version) {
             if !maps.is_empty() {
-                failures.push(format!("{file_name}: Bun {bun_version} was not expected to embed a source map"));
+                failures.push(format!(
+                    "{file_name}: Bun {bun_version} was not expected to embed a source map"
+                ));
             }
             continue;
         }
         let [entry] = maps[..] else {
-            failures.push(format!("{file_name}: {} modules have source maps, expected 1", maps.len()));
+            failures.push(format!(
+                "{file_name}: {} modules have source maps, expected 1",
+                maps.len()
+            ));
             continue;
         };
 
-        let bytes = located.payload.get(entry.sourcemap).expect("locate checked every pointer");
+        let bytes = located
+            .payload
+            .get(entry.sourcemap)
+            .expect("locate checked every pointer");
         let map = match sourcemap::parse(bytes) {
             Ok(map) => map,
             Err(error) => {
@@ -66,20 +89,35 @@ fn matrix_source_maps_hold_the_fixture_sources() {
             }
         };
         let names: Vec<&str> = map.files.iter().map(|file| file.name).collect();
-        if names != ["tools/bun-matrix/fixture/greet.ts", "tools/bun-matrix/fixture/index.ts"] {
+        if names
+            != [
+                "tools/bun-matrix/fixture/greet.ts",
+                "tools/bun-matrix/fixture/index.ts",
+            ]
+        {
             failures.push(format!("{file_name}: source map names {names:?}"));
             continue;
         }
         for file in &map.files {
-            let on_disk = fs::read(repository.join(file.name)).expect("fixture sources are readable");
+            let on_disk =
+                fs::read(repository.join(file.name)).expect("fixture sources are readable");
             match file.decompress() {
                 Ok(text) if text == on_disk => {}
-                Ok(_) => failures.push(format!("{file_name}: {} differs from the fixture", file.name)),
+                Ok(_) => failures.push(format!(
+                    "{file_name}: {} differs from the fixture",
+                    file.name
+                )),
                 Err(error) => failures.push(format!("{file_name}: {error}")),
             }
         }
         checked += 1;
     }
-    assert!(failures.is_empty(), "{} of {} failed:\n{}", failures.len(), paths.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} of {} failed:\n{}",
+        failures.len(),
+        paths.len(),
+        failures.join("\n")
+    );
     assert_eq!(checked, 30, "expected 30 binaries with a source map");
 }

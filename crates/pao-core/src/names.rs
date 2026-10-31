@@ -34,16 +34,64 @@ use crate::version::BunVersion;
 
 // The three numberings, each in full; a release uses a prefix of one of them.
 const LOADERS_BEFORE_1_0_24: &[&str] = &[
-    "jsx", "js", "ts", "tsx", "css", "file", "json", "toml", "wasm", "napi", "base64", "dataurl",
-    "text", "sqlite", "sqlite_embedded",
+    "jsx",
+    "js",
+    "ts",
+    "tsx",
+    "css",
+    "file",
+    "json",
+    "toml",
+    "wasm",
+    "napi",
+    "base64",
+    "dataurl",
+    "text",
+    "sqlite",
+    "sqlite_embedded",
 ];
 const LOADERS_BEFORE_1_2_5: &[&str] = &[
-    "jsx", "js", "ts", "tsx", "css", "file", "json", "toml", "wasm", "napi", "base64", "dataurl",
-    "text", "bunsh", "sqlite", "sqlite_embedded", "html",
+    "jsx",
+    "js",
+    "ts",
+    "tsx",
+    "css",
+    "file",
+    "json",
+    "toml",
+    "wasm",
+    "napi",
+    "base64",
+    "dataurl",
+    "text",
+    "bunsh",
+    "sqlite",
+    "sqlite_embedded",
+    "html",
 ];
 const LOADERS_FROM_1_2_5: &[&str] = &[
-    "jsx", "js", "ts", "tsx", "css", "file", "json", "jsonc", "toml", "wasm", "napi", "base64",
-    "dataurl", "text", "bunsh", "sqlite", "sqlite_embedded", "html", "yaml", "json5", "md", "xml",
+    "jsx",
+    "js",
+    "ts",
+    "tsx",
+    "css",
+    "file",
+    "json",
+    "jsonc",
+    "toml",
+    "wasm",
+    "napi",
+    "base64",
+    "dataurl",
+    "text",
+    "bunsh",
+    "sqlite",
+    "sqlite_embedded",
+    "html",
+    "yaml",
+    "json5",
+    "md",
+    "xml",
 ];
 
 /// The loader names `version` defines, in value order.
@@ -80,7 +128,11 @@ pub fn module_format(value: u8) -> Option<&'static str> {
 /// `encoding`. Value 2 was `utf8`, defined but never written, until Bun 1.4.1
 /// (`4661e494f052`) reused it for UTF-16 code units.
 pub fn encoding(value: u8, version: &BunVersion<'_>) -> Option<&'static str> {
-    let two = if version.release() < (1, 4, 1) { "utf8" } else { "utf16" };
+    let two = if version.release() < (1, 4, 1) {
+        "utf8"
+    } else {
+        "utf16"
+    };
     ["binary", "latin1", two].get(usize::from(value)).copied()
 }
 
@@ -94,7 +146,12 @@ mod tests {
     use super::*;
 
     fn bun(major: u32, minor: u32, patch: u32) -> BunVersion<'static> {
-        BunVersion { major, minor, patch, commit: "00000000" }
+        BunVersion {
+            major,
+            minor,
+            patch,
+            commit: "00000000",
+        }
     }
 
     /// Each insertion changes what one byte means between adjacent releases.
@@ -124,7 +181,17 @@ mod tests {
     /// a length outgrows its numbering; this visits every boundary.
     #[test]
     fn table_lengths_fit_their_numberings() {
-        for release in [(1, 0, 0), (1, 0, 23), (1, 1, 0), (1, 1, 43), (1, 2, 5), (1, 2, 21), (1, 3, 7), (1, 3, 8), (1, 4, 4)] {
+        for release in [
+            (1, 0, 0),
+            (1, 0, 23),
+            (1, 1, 0),
+            (1, 1, 43),
+            (1, 2, 5),
+            (1, 2, 21),
+            (1, 3, 7),
+            (1, 3, 8),
+            (1, 4, 4),
+        ] {
             let table = loaders(&bun(release.0, release.1, release.2));
             assert!(!table.is_empty(), "{release:?}");
         }

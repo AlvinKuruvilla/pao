@@ -44,20 +44,60 @@ pub const HAS_LINKED_BYTECODE_PAYLOAD: u32 = 1 << 13;
 
 /// Each bit with its name in Bun's source and the release that defined it.
 const BITS: &[(u32, &str, (u32, u32, u32))] = &[
-    (DISABLE_DEFAULT_ENV_FILES, "disable_default_env_files", (1, 3, 3)),
-    (DISABLE_AUTOLOAD_BUNFIG, "disable_autoload_bunfig", (1, 3, 3)),
-    (DISABLE_AUTOLOAD_TSCONFIG, "disable_autoload_tsconfig", (1, 3, 4)),
-    (DISABLE_AUTOLOAD_PACKAGE_JSON, "disable_autoload_package_json", (1, 3, 4)),
+    (
+        DISABLE_DEFAULT_ENV_FILES,
+        "disable_default_env_files",
+        (1, 3, 3),
+    ),
+    (
+        DISABLE_AUTOLOAD_BUNFIG,
+        "disable_autoload_bunfig",
+        (1, 3, 3),
+    ),
+    (
+        DISABLE_AUTOLOAD_TSCONFIG,
+        "disable_autoload_tsconfig",
+        (1, 3, 4),
+    ),
+    (
+        DISABLE_AUTOLOAD_PACKAGE_JSON,
+        "disable_autoload_package_json",
+        (1, 3, 4),
+    ),
     (SOURCE_TEXT_CONTIGUOUS, "source_text_contiguous", (1, 4, 1)),
     (HAS_SOURCE_HASHES, "has_source_hashes", (1, 4, 1)),
     (HAS_BUILTIN_BYTECODE, "has_builtin_bytecode", (1, 4, 1)),
-    (HAS_BYTECODE_STRING_TABLE, "has_bytecode_string_table", (1, 4, 1)),
-    (HAS_STARTUP_MODULE_COUNT, "has_startup_module_count", (1, 4, 1)),
-    (HAS_MODULE_INFO_STRING_TABLE, "has_module_info_string_table", (1, 4, 1)),
-    (CROSS_COMPILED_BYTECODE, "cross_compiled_bytecode", (1, 4, 1)),
-    (HAS_PRELINKED_MODULE_GRAPH, "has_prelinked_module_graph", (1, 4, 3)),
+    (
+        HAS_BYTECODE_STRING_TABLE,
+        "has_bytecode_string_table",
+        (1, 4, 1),
+    ),
+    (
+        HAS_STARTUP_MODULE_COUNT,
+        "has_startup_module_count",
+        (1, 4, 1),
+    ),
+    (
+        HAS_MODULE_INFO_STRING_TABLE,
+        "has_module_info_string_table",
+        (1, 4, 1),
+    ),
+    (
+        CROSS_COMPILED_BYTECODE,
+        "cross_compiled_bytecode",
+        (1, 4, 1),
+    ),
+    (
+        HAS_PRELINKED_MODULE_GRAPH,
+        "has_prelinked_module_graph",
+        (1, 4, 3),
+    ),
     (HAS_RUNTIME_OPTIONS, "has_runtime_options", (1, 4, 3)),
-    (HAS_LINKED_BYTECODE_PAYLOAD, "has_linked_bytecode_payload", (1, 4, 3)),
+    (
+        HAS_LINKED_BYTECODE_PAYLOAD,
+        "has_linked_bytecode_payload",
+        (1, 4, 3),
+    ),
 ];
 
 /// The bits `version` defines. Zero before 1.3.3, where the bytes are padding.
@@ -77,7 +117,10 @@ pub fn is_set(flags: u32, bit: u32, version: &BunVersion<'_>) -> bool {
 
 /// The names of the bits set in `flags` that `version` defines, low bit first.
 /// Set bits it does not define are `flags & !defined(version)`.
-pub fn names<'v>(flags: u32, version: &'v BunVersion<'_>) -> impl Iterator<Item = &'static str> + 'v {
+pub fn names<'v>(
+    flags: u32,
+    version: &'v BunVersion<'_>,
+) -> impl Iterator<Item = &'static str> + 'v {
     BITS.iter()
         .filter(move |(bit, _, since)| flags & bit != 0 && version.release() >= *since)
         .map(|(_, name, _)| *name)
@@ -88,7 +131,12 @@ mod tests {
     use super::*;
 
     fn bun(major: u32, minor: u32, patch: u32) -> BunVersion<'static> {
-        BunVersion { major, minor, patch, commit: "00000000" }
+        BunVersion {
+            major,
+            minor,
+            patch,
+            commit: "00000000",
+        }
     }
 
     #[test]
@@ -109,8 +157,19 @@ mod tests {
             names_of(0xc, bun(1, 3, 7)),
             ["disable_autoload_tsconfig", "disable_autoload_package_json"]
         );
-        assert_eq!(names_of(HAS_LINKED_BYTECODE_PAYLOAD, bun(1, 4, 0)), Vec::<&str>::new());
-        assert!(!is_set(HAS_LINKED_BYTECODE_PAYLOAD, HAS_LINKED_BYTECODE_PAYLOAD, &bun(1, 4, 0)));
-        assert!(is_set(HAS_LINKED_BYTECODE_PAYLOAD, HAS_LINKED_BYTECODE_PAYLOAD, &bun(1, 4, 3)));
+        assert_eq!(
+            names_of(HAS_LINKED_BYTECODE_PAYLOAD, bun(1, 4, 0)),
+            Vec::<&str>::new()
+        );
+        assert!(!is_set(
+            HAS_LINKED_BYTECODE_PAYLOAD,
+            HAS_LINKED_BYTECODE_PAYLOAD,
+            &bun(1, 4, 0)
+        ));
+        assert!(is_set(
+            HAS_LINKED_BYTECODE_PAYLOAD,
+            HAS_LINKED_BYTECODE_PAYLOAD,
+            &bun(1, 4, 3)
+        ));
     }
 }

@@ -110,9 +110,8 @@ mod tests {
     /// Bun 1.2.0 with `--bytecode`. Byte 35 is padding, so `side` is absent.
     #[test]
     fn parses_v1_1_30() {
-        let bytes = hex(
-            "880e000029000000 b20e0000b5010000 0000000000000000 00000000880e0000 01010200",
-        );
+        let bytes =
+            hex("880e000029000000 b20e0000b5010000 0000000000000000 00000000880e0000 01010200");
         assert_eq!(
             parse_entry(&bytes, LayoutVersion::V1_1_30),
             Some(ModuleEntry {
@@ -133,9 +132,8 @@ mod tests {
     /// Bun 1.3.7 with `--bytecode`. Same size as V1_1_30; byte 35 is `side`.
     #[test]
     fn parses_v1_2_23() {
-        let bytes = hex(
-            "180f000029000000 420f0000b5010000 0000000000000000 78000000a00e0000 01010200",
-        );
+        let bytes =
+            hex("180f000029000000 420f0000b5010000 0000000000000000 78000000a00e0000 01010200");
         assert_eq!(
             parse_entry(&bytes, LayoutVersion::V1_2_23),
             Some(ModuleEntry {

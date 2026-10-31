@@ -61,18 +61,30 @@ mod tests {
             offsets,
             Offsets {
                 byte_count: 2080,
-                modules_ptr: StringPointer { offset: 1951, length: 104 },
+                modules_ptr: StringPointer {
+                    offset: 1951,
+                    length: 104
+                },
                 entry_point_id: 0,
-                compile_exec_argv_ptr: Some(StringPointer { offset: 2079, length: 0 }),
+                compile_exec_argv_ptr: Some(StringPointer {
+                    offset: 2079,
+                    length: 0
+                }),
                 flags: Some(0x5fc),
             }
         );
-        assert_eq!(offsets.modules_ptr.length as usize / LayoutVersion::V1_3_14.entry_size(), 2);
+        assert_eq!(
+            offsets.modules_ptr.length as usize / LayoutVersion::V1_3_14.entry_size(),
+            2
+        );
     }
 
     #[test]
     fn rejects_wrong_length() {
-        assert_eq!(parse_offsets(&BUN_1_4_4_OFFSETS[..24], LayoutVersion::V1_3_14), None);
+        assert_eq!(
+            parse_offsets(&BUN_1_4_4_OFFSETS[..24], LayoutVersion::V1_3_14),
+            None
+        );
         assert_eq!(parse_offsets(&BUN_1_4_4_OFFSETS, LayoutVersion::V1_0), None);
     }
 
@@ -84,7 +96,13 @@ mod tests {
         let offsets = parse_offsets(&BUN_1_4_4_OFFSETS[..24], LayoutVersion::V1_0)
             .expect("24 bytes is the V1_0 size");
         assert_eq!(offsets.byte_count, 2080);
-        assert_eq!(offsets.modules_ptr, StringPointer { offset: 1951, length: 104 });
+        assert_eq!(
+            offsets.modules_ptr,
+            StringPointer {
+                offset: 1951,
+                length: 104
+            }
+        );
         assert_eq!(offsets.entry_point_id, 0);
         assert_eq!(offsets.compile_exec_argv_ptr, None);
         assert_eq!(offsets.flags, None);

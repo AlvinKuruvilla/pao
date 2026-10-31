@@ -66,16 +66,21 @@ const VIRTUAL_ROOTS: [&str; 3] = ["/$bunfs/root/", "B:/~BUN/root/", "compiled://
 
 pub fn run(binary: &Path, output: Option<&Path>, force: bool) -> anyhow::Result<()> {
     let bytes = fs::read(binary).with_context(|| format!("read {}", binary.display()))?;
-    let located = locate(&bytes)
-        .with_context(|| format!("find the Bun payload in {}", binary.display()))?;
+    let located =
+        locate(&bytes).with_context(|| format!("find the Bun payload in {}", binary.display()))?;
     let version = find_version(&bytes, &located)
         .with_context(|| format!("identify the Bun release that built {}", binary.display()))?;
 
     // Not `file_stem`: executables are often named with dots, `app-1.4.2`,
     // and only Windows' `.exe` is an extension Bun adds.
-    let file_name = binary.file_name().map_or("build".into(), |name| name.to_string_lossy());
+    let file_name = binary
+        .file_name()
+        .map_or("build".into(), |name| name.to_string_lossy());
     let stem = file_name.strip_suffix(".exe").unwrap_or(&file_name);
-    let output = output.map_or_else(|| PathBuf::from(format!("{stem}.extracted")), Path::to_path_buf);
+    let output = output.map_or_else(
+        || PathBuf::from(format!("{stem}.extracted")),
+        Path::to_path_buf,
+    );
 
     let bundled = plan_bundled(&located, &version)?;
     let sources = plan_sources(&located, stem)?;
@@ -105,16 +110,33 @@ type Plan = BTreeMap<PathBuf, Vec<u8>>;
 fn plan_bundled(located: &Located<'_>, version: &BunVersion<'_>) -> anyhow::Result<Plan> {
     let mut plan = Plan::new();
     for entry in &located.entries {
-        let name = located.payload.get(entry.name).expect("locate checked every pointer");
+        let name = located
+            .payload
+            .get(entry.name)
+            .expect("locate checked every pointer");
         let name = std::str::from_utf8(name).expect("locate checked that names are UTF-8");
-        let contents = located.payload.get(entry.contents).expect("locate checked every pointer");
+        let contents = located
+            .payload
+            .get(entry.contents)
+            .expect("locate checked every pointer");
 
-        let relative = VIRTUAL_ROOTS.iter().find_map(|root| name.strip_prefix(root)).unwrap_or(name);
+        let relative = VIRTUAL_ROOTS
+            .iter()
+            .find_map(|root| name.strip_prefix(root))
+            .unwrap_or(name);
         let segments = safe_segments(relative).with_context(|| format!("place module {name}"))?;
-        let path: PathBuf = ["bundled".to_string()].into_iter().chain(segments).collect();
+        let path: PathBuf = ["bundled".to_string()]
+            .into_iter()
+            .chain(segments)
+            .collect();
 
-        let contents = to_utf8(contents, entry.encoding.and_then(|value| names::encoding(value, version)))
-            .with_context(|| format!("convert module {name} to UTF-8"))?;
+        let contents = to_utf8(
+            contents,
+            entry
+                .encoding
+                .and_then(|value| names::encoding(value, version)),
+        )
+        .with_context(|| format!("convert module {name} to UTF-8"))?;
         if plan.insert(path, contents).is_some() {
             bail!("two modules are named {name}; extracting both would lose one");
         }
@@ -128,11 +150,19 @@ fn plan_sources(located: &Located<'_>, stem: &str) -> anyhow::Result<Plan> {
     // them are needed before any is placed, because the deepest `..` decides
     // where the build directory sits.
     let mut files: BTreeMap<(usize, Vec<String>), (String, Vec<u8>)> = BTreeMap::new();
-    for entry in located.entries.iter().filter(|entry| entry.sourcemap.length > 0) {
-        let bytes = located.payload.get(entry.sourcemap).expect("locate checked every pointer");
+    for entry in located
+        .entries
+        .iter()
+        .filter(|entry| entry.sourcemap.length > 0)
+    {
+        let bytes = located
+            .payload
+            .get(entry.sourcemap)
+            .expect("locate checked every pointer");
         let map = sourcemap::parse(bytes).context("decode a module's source map")?;
         for file in &map.files {
-            let (up, rest) = split_parents(file.name).with_context(|| format!("place source {}", file.name))?;
+            let (up, rest) =
+                split_parents(file.name).with_context(|| format!("place source {}", file.name))?;
             let text = file.decompress().context("decompress a source file")?;
             // Code splitting can list one file in several chunks' maps.
             match files.entry((up, rest)) {
@@ -151,15 +181,22 @@ fn plan_sources(located: &Located<'_>, stem: &str) -> anyhow::Result<Plan> {
     let depth = files.keys().map(|(up, _)| *up).max().unwrap_or(0);
     // The directories from `sources/` down to the build directory, outermost
     // first: `app.up1/app` for a depth of 2.
-    let invented: Vec<String> = (0..depth).rev().map(|level| match level {
-        0 => stem.to_string(),
-        level => format!("{stem}.up{level}"),
-    }).collect();
+    let invented: Vec<String> = (0..depth)
+        .rev()
+        .map(|level| match level {
+            0 => stem.to_string(),
+            level => format!("{stem}.up{level}"),
+        })
+        .collect();
 
     let mut plan = Plan::new();
     for ((up, rest), (name, text)) in files {
-        let path: PathBuf =
-            ["sources"].into_iter().map(String::from).chain(invented[..depth - up].iter().cloned()).chain(rest).collect();
+        let path: PathBuf = ["sources"]
+            .into_iter()
+            .map(String::from)
+            .chain(invented[..depth - up].iter().cloned())
+            .chain(rest)
+            .collect();
         if plan.insert(path.clone(), text).is_some() {
             bail!(
                 "source {name} lands on {}, as another file does; the names that stand in for \
@@ -196,7 +233,8 @@ fn split_parents(name: &str) -> anyhow::Result<(usize, Vec<String>)> {
             ".." => bail!("{name} has `..` after its first segments"),
             segment => {
                 ensure!(
-                    !segment.contains(['\\', '\0']) && !(rest.is_empty() && up == 0 && segment.ends_with(':')),
+                    !segment.contains(['\\', '\0'])
+                        && !(rest.is_empty() && up == 0 && segment.ends_with(':')),
                     "{name} has a segment, {segment:?}, that is not a plain file name"
                 );
                 rest.push(segment.to_string());
@@ -211,12 +249,24 @@ fn split_parents(name: &str) -> anyhow::Result<(usize, Vec<String>)> {
 fn to_utf8(contents: &[u8], encoding: Option<&str>) -> anyhow::Result<Vec<u8>> {
     Ok(match encoding {
         // Latin-1 maps each byte to the code point of the same value.
-        Some("latin1") => contents.iter().map(|&byte| char::from(byte)).collect::<String>().into_bytes(),
+        Some("latin1") => contents
+            .iter()
+            .map(|&byte| char::from(byte))
+            .collect::<String>()
+            .into_bytes(),
         // Bun 1.4.1+ stores UTF-16 code units little-endian; checked on every
         // `utf16` module of one 1.4.4 executable.
         Some("utf16") => {
-            ensure!(contents.len().is_multiple_of(2), "UTF-16 contents have an odd length, {}", contents.len());
-            let units = contents.as_chunks::<2>().0.iter().map(|&pair| u16::from_le_bytes(pair));
+            ensure!(
+                contents.len().is_multiple_of(2),
+                "UTF-16 contents have an odd length, {}",
+                contents.len()
+            );
+            let units = contents
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|&pair| u16::from_le_bytes(pair));
             char::decode_utf16(units)
                 .collect::<Result<String, _>>()
                 .context("contents are not valid UTF-16")?
@@ -244,7 +294,9 @@ fn prepare_output(output: &Path, force: bool) -> anyhow::Result<()> {
 /// also catches two plan paths that differ only in case on a case-insensitive
 /// file system, which the plan's own check cannot see.
 fn write_new(path: &Path, contents: &[u8], force: bool) -> anyhow::Result<()> {
-    let parent = path.parent().expect("plan paths are under the output directory");
+    let parent = path
+        .parent()
+        .expect("plan paths are under the output directory");
     fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
     let mut options = OpenOptions::new();
     options.write(true);
@@ -253,8 +305,11 @@ fn write_new(path: &Path, contents: &[u8], force: bool) -> anyhow::Result<()> {
     } else {
         options.create_new(true);
     }
-    let mut file = options.open(path).with_context(|| format!("create {}", path.display()))?;
-    file.write_all(contents).with_context(|| format!("write {}", path.display()))
+    let mut file = options
+        .open(path)
+        .with_context(|| format!("create {}", path.display()))?;
+    file.write_all(contents)
+        .with_context(|| format!("write {}", path.display()))
 }
 
 #[cfg(test)]
@@ -263,8 +318,14 @@ mod tests {
 
     #[test]
     fn splits_leading_parents() {
-        assert_eq!(split_parents("../../lib/a.ts").unwrap(), (2, vec!["lib".to_string(), "a.ts".to_string()]));
-        assert_eq!(split_parents("./src//b.ts").unwrap(), (0, vec!["src".to_string(), "b.ts".to_string()]));
+        assert_eq!(
+            split_parents("../../lib/a.ts").unwrap(),
+            (2, vec!["lib".to_string(), "a.ts".to_string()])
+        );
+        assert_eq!(
+            split_parents("./src//b.ts").unwrap(),
+            (0, vec!["src".to_string(), "b.ts".to_string()])
+        );
     }
 
     #[test]
@@ -277,8 +338,17 @@ mod tests {
 
     #[test]
     fn converts_text_encodings() {
-        assert_eq!(to_utf8(&[0x63, 0xE9], Some("latin1")).unwrap(), "cé".as_bytes());
-        assert_eq!(to_utf8(&[0x63, 0x00, 0xE9, 0x00], Some("utf16")).unwrap(), "cé".as_bytes());
-        assert_eq!(to_utf8(&[0xFF, 0x00], Some("binary")).unwrap(), [0xFF, 0x00]);
+        assert_eq!(
+            to_utf8(&[0x63, 0xE9], Some("latin1")).unwrap(),
+            "cé".as_bytes()
+        );
+        assert_eq!(
+            to_utf8(&[0x63, 0x00, 0xE9, 0x00], Some("utf16")).unwrap(),
+            "cé".as_bytes()
+        );
+        assert_eq!(
+            to_utf8(&[0xFF, 0x00], Some("binary")).unwrap(),
+            [0xFF, 0x00]
+        );
     }
 }

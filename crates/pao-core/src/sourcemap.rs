@@ -81,13 +81,23 @@ pub enum SourceMapError {
 impl fmt::Display for SourceMapError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SourceMapError::Truncated => write!(f, "source map is shorter than its own header says"),
-            SourceMapError::PointerOutOfRange { index } => {
-                write!(f, "source map pointer {index} runs past the end of the source map")
+            SourceMapError::Truncated => {
+                write!(f, "source map is shorter than its own header says")
             }
-            SourceMapError::NameNotUtf8 { index } => write!(f, "source map file name {index} is not UTF-8"),
+            SourceMapError::PointerOutOfRange { index } => {
+                write!(
+                    f,
+                    "source map pointer {index} runs past the end of the source map"
+                )
+            }
+            SourceMapError::NameNotUtf8 { index } => {
+                write!(f, "source map file name {index} is not UTF-8")
+            }
             SourceMapError::UnknownSize { name } => {
-                write!(f, "compressed source {name} does not record its size; Bun always writes one")
+                write!(
+                    f,
+                    "compressed source {name} does not record its size; Bun always writes one"
+                )
             }
             SourceMapError::TooLarge { name, claimed } => write!(
                 f,
@@ -127,8 +137,12 @@ pub fn parse(bytes: &[u8]) -> Result<SourceMap<'_>, SourceMapError> {
 
     let files = (0..count)
         .map(|index| {
-            let name = std::str::from_utf8(slice(index)?).map_err(|_| SourceMapError::NameNotUtf8 { index })?;
-            Ok(SourceFile { name, compressed: slice(count + index)? })
+            let name = std::str::from_utf8(slice(index)?)
+                .map_err(|_| SourceMapError::NameNotUtf8 { index })?;
+            Ok(SourceFile {
+                name,
+                compressed: slice(count + index)?,
+            })
         })
         .collect::<Result<_, _>>()?;
     Ok(SourceMap { files })
@@ -140,19 +154,32 @@ impl SourceFile<'_> {
     pub fn decompress(&self) -> Result<Vec<u8>, SourceMapError> {
         let name = || self.name.to_string();
         let claimed = zstd::zstd_safe::get_frame_content_size(self.compressed)
-            .map_err(|_| SourceMapError::Decompress { name: name(), message: "not a zstd frame".to_string() })?
+            .map_err(|_| SourceMapError::Decompress {
+                name: name(),
+                message: "not a zstd frame".to_string(),
+            })?
             .ok_or_else(|| SourceMapError::UnknownSize { name: name() })?;
         if claimed > MAX_SOURCE_LEN {
-            return Err(SourceMapError::TooLarge { name: name(), claimed });
+            return Err(SourceMapError::TooLarge {
+                name: name(),
+                claimed,
+            });
         }
         // `bulk::decompress` fails rather than writing past `claimed` bytes,
         // so the cap holds even if the frame lies about its size.
-        let text = zstd::bulk::decompress(self.compressed, claimed as usize)
-            .map_err(|error| SourceMapError::Decompress { name: name(), message: error.to_string() })?;
+        let text = zstd::bulk::decompress(self.compressed, claimed as usize).map_err(|error| {
+            SourceMapError::Decompress {
+                name: name(),
+                message: error.to_string(),
+            }
+        })?;
         if text.len() as u64 != claimed {
             return Err(SourceMapError::Decompress {
                 name: name(),
-                message: format!("decompressed to {} bytes, frame claims {claimed}", text.len()),
+                message: format!(
+                    "decompressed to {} bytes, frame claims {claimed}",
+                    text.len()
+                ),
             });
         }
         Ok(text)
@@ -166,14 +193,19 @@ mod tests {
     /// Builds a source map the way Bun's `serializeJsonSourceMapForStandalone`
     /// does: names, then compressed sources, then the mappings, then strings.
     fn serialize(files: &[(&str, &str)], mappings: &[u8]) -> Vec<u8> {
-        let compressed: Vec<Vec<u8>> =
-            files.iter().map(|(_, text)| zstd::bulk::compress(text.as_bytes(), 1).expect("compresses")).collect();
+        let compressed: Vec<Vec<u8>> = files
+            .iter()
+            .map(|(_, text)| zstd::bulk::compress(text.as_bytes(), 1).expect("compresses"))
+            .collect();
         let strings_start = HEADER_LEN + files.len() * 2 * POINTER_LEN + mappings.len();
         let mut header: Vec<u8> = Vec::new();
         let mut strings: Vec<u8> = Vec::new();
         header.extend((files.len() as u32).to_le_bytes());
         header.extend((mappings.len() as u32).to_le_bytes());
-        let blobs = files.iter().map(|(name, _)| name.as_bytes()).chain(compressed.iter().map(Vec::as_slice));
+        let blobs = files
+            .iter()
+            .map(|(name, _)| name.as_bytes())
+            .chain(compressed.iter().map(Vec::as_slice));
         for blob in blobs {
             header.extend(((strings_start + strings.len()) as u32).to_le_bytes());
             header.extend((blob.len() as u32).to_le_bytes());
@@ -186,11 +218,20 @@ mod tests {
 
     #[test]
     fn decodes_names_and_sources() {
-        let bytes = serialize(&[("../shared.ts", "export const a = 1;\n"), ("index.ts", "import \"../shared\";\n")], b"AAAA;");
+        let bytes = serialize(
+            &[
+                ("../shared.ts", "export const a = 1;\n"),
+                ("index.ts", "import \"../shared\";\n"),
+            ],
+            b"AAAA;",
+        );
         let map = parse(&bytes).expect("decodes");
         let names: Vec<&str> = map.files.iter().map(|file| file.name).collect();
         assert_eq!(names, ["../shared.ts", "index.ts"]);
-        assert_eq!(map.files[1].decompress().expect("decompresses"), b"import \"../shared\";\n");
+        assert_eq!(
+            map.files[1].decompress().expect("decompresses"),
+            b"import \"../shared\";\n"
+        );
     }
 
     #[test]
@@ -206,7 +247,10 @@ mod tests {
         // The first source pointer's length, after the name pointer.
         let at = HEADER_LEN + POINTER_LEN + 4;
         bytes[at..at + 4].copy_from_slice(&u32::MAX.to_le_bytes());
-        assert_eq!(parse(&bytes), Err(SourceMapError::PointerOutOfRange { index: 1 }));
+        assert_eq!(
+            parse(&bytes),
+            Err(SourceMapError::PointerOutOfRange { index: 1 })
+        );
     }
 
     #[test]
@@ -217,10 +261,16 @@ mod tests {
         // the header alone, so the cap must trip before decompression starts.
         let mut forged = vec![0x28, 0xB5, 0x2F, 0xFD, 0xE0];
         forged.extend((1u64 << 40).to_le_bytes());
-        let file = SourceFile { name: "index.ts", compressed: &forged };
+        let file = SourceFile {
+            name: "index.ts",
+            compressed: &forged,
+        };
         assert_eq!(
             file.decompress(),
-            Err(SourceMapError::TooLarge { name: "index.ts".to_string(), claimed: 1 << 40 })
+            Err(SourceMapError::TooLarge {
+                name: "index.ts".to_string(),
+                claimed: 1 << 40
+            })
         );
     }
 }

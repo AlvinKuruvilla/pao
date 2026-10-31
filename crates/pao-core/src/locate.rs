@@ -69,7 +69,10 @@ impl fmt::Display for LocateError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             LocateError::NotFound { trailers: 0 } => {
-                write!(f, "no Bun trailer found; this is not a `bun build --compile` executable")
+                write!(
+                    f,
+                    "no Bun trailer found; this is not a `bun build --compile` executable"
+                )
             }
             LocateError::NotFound { trailers } => write!(
                 f,
@@ -77,7 +80,10 @@ impl fmt::Display for LocateError {
                  the executable may come from a Bun release newer than this parser"
             ),
             LocateError::Ambiguous(candidates) => {
-                write!(f, "more than one layout decodes, so the result cannot be trusted:")?;
+                write!(
+                    f,
+                    "more than one layout decodes, so the result cannot be trusted:"
+                )?;
                 for (trailer_pos, layout) in candidates {
                     write!(f, " {layout:?} at trailer offset {trailer_pos:#x};")?;
                 }
@@ -104,7 +110,10 @@ pub fn locate(binary: &[u8]) -> Result<Located<'_>, LocateError> {
         0 => Err(LocateError::NotFound { trailers }),
         1 => Ok(found.pop().expect("length is 1")),
         _ => Err(LocateError::Ambiguous(
-            found.iter().map(|located| (located.trailer_pos, located.layout)).collect(),
+            found
+                .iter()
+                .map(|located| (located.trailer_pos, located.layout))
+                .collect(),
         )),
     }
 }
@@ -159,7 +168,14 @@ fn try_layout(binary: &[u8], trailer_pos: usize, layout: LayoutVersion) -> Optio
         })
         .collect::<Option<Vec<_>>>()?;
 
-    Some(Located { layout, offsets, payload, base, trailer_pos, entries })
+    Some(Located {
+        layout,
+        offsets,
+        payload,
+        base,
+        trailer_pos,
+        entries,
+    })
 }
 
 #[cfg(test)]

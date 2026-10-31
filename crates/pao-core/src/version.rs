@@ -44,7 +44,11 @@ impl BunVersion<'_> {
 
 impl fmt::Display for BunVersion<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{}.{} ({})", self.major, self.minor, self.patch, self.commit)
+        write!(
+            f,
+            "{}.{}.{} ({})",
+            self.major, self.minor, self.patch, self.commit
+        )
     }
 }
 
@@ -107,7 +111,9 @@ pub fn find_version<'a>(
     match found.len() {
         0 => Err(VersionError::NotFound),
         1 => Ok(found[0]),
-        _ => Err(VersionError::Ambiguous(found.iter().map(ToString::to_string).collect())),
+        _ => Err(VersionError::Ambiguous(
+            found.iter().map(ToString::to_string).collect(),
+        )),
     }
 }
 
@@ -120,17 +126,28 @@ fn parse_after_prefix(bytes: &[u8]) -> Option<BunVersion<'_>> {
 
     // 8 digits up to Bun 1.3.x, 9 in 1.4.x. Other lengths are other strings
     // that happen to start the same way, such as `Bun v1.2.12 (Windows x64)`.
-    let hex_len = rest.iter().take_while(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f')).count();
+    let hex_len = rest
+        .iter()
+        .take_while(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+        .count();
     if !(8..=9).contains(&hex_len) || rest.get(hex_len) != Some(&b')') {
         return None;
     }
     let commit = std::str::from_utf8(&rest[..hex_len]).expect("hex digits are ASCII");
-    Some(BunVersion { major, minor, patch, commit })
+    Some(BunVersion {
+        major,
+        minor,
+        patch,
+        commit,
+    })
 }
 
 /// A decimal `u32` at the start of `bytes`, and the bytes after it.
 fn parse_number(bytes: &[u8]) -> Option<(u32, &[u8])> {
-    let digits = bytes.iter().take_while(|byte| byte.is_ascii_digit()).count();
+    let digits = bytes
+        .iter()
+        .take_while(|byte| byte.is_ascii_digit())
+        .count();
     // `parse` rejects the empty string and values past `u32::MAX`.
     let value = std::str::from_utf8(&bytes[..digits]).ok()?.parse().ok()?;
     Some((value, &bytes[digits..]))
@@ -145,18 +162,32 @@ mod tests {
     use crate::string_pointer::StringPointer;
 
     fn version(text: &str) -> Option<BunVersion<'_>> {
-        parse_after_prefix(text.strip_prefix("Bun v").expect("test strings start with the prefix").as_bytes())
+        parse_after_prefix(
+            text.strip_prefix("Bun v")
+                .expect("test strings start with the prefix")
+                .as_bytes(),
+        )
     }
 
     #[test]
     fn parses_both_commit_lengths() {
         assert_eq!(
             version("Bun v1.3.7 (ba426210) macOS"),
-            Some(BunVersion { major: 1, minor: 3, patch: 7, commit: "ba426210" })
+            Some(BunVersion {
+                major: 1,
+                minor: 3,
+                patch: 7,
+                commit: "ba426210"
+            })
         );
         assert_eq!(
             version("Bun v1.4.4 (38afee6c8)"),
-            Some(BunVersion { major: 1, minor: 4, patch: 4, commit: "38afee6c8" })
+            Some(BunVersion {
+                major: 1,
+                minor: 4,
+                patch: 4,
+                commit: "38afee6c8"
+            })
         );
     }
 
@@ -172,7 +203,11 @@ mod tests {
 
     /// Runtime bytes, then `payload`, the trailer, and more runtime bytes;
     /// returns the bytes with the payload's `base` and `trailer_pos`.
-    fn fake_executable(runtime_before: &str, payload: &str, runtime_after: &str) -> (Vec<u8>, usize, usize) {
+    fn fake_executable(
+        runtime_before: &str,
+        payload: &str,
+        runtime_after: &str,
+    ) -> (Vec<u8>, usize, usize) {
         let mut binary = runtime_before.as_bytes().to_vec();
         let base = binary.len();
         binary.extend_from_slice(payload.as_bytes());
@@ -189,7 +224,10 @@ mod tests {
             layout: LayoutVersion::V1_3_14,
             offsets: Offsets {
                 byte_count: 0,
-                modules_ptr: StringPointer { offset: 0, length: 0 },
+                modules_ptr: StringPointer {
+                    offset: 0,
+                    length: 0,
+                },
                 entry_point_id: 0,
                 compile_exec_argv_ptr: None,
                 flags: None,
@@ -211,7 +249,10 @@ mod tests {
             "",
         );
         let found = find_version(&binary, &located(&binary, base, trailer_pos));
-        assert_eq!(found.expect("one distinct release").to_string(), "1.4.4 (38afee6c8)");
+        assert_eq!(
+            found.expect("one distinct release").to_string(),
+            "1.4.4 (38afee6c8)"
+        );
     }
 
     #[test]
@@ -221,7 +262,10 @@ mod tests {
         let found = find_version(&binary, &located(&binary, base, trailer_pos));
         assert_eq!(
             found,
-            Err(VersionError::Ambiguous(vec!["1.4.4 (38afee6c8)".into(), "1.4.0 (0123abcd4)".into()]))
+            Err(VersionError::Ambiguous(vec![
+                "1.4.4 (38afee6c8)".into(),
+                "1.4.0 (0123abcd4)".into()
+            ]))
         );
     }
 
