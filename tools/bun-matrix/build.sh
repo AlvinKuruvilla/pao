@@ -93,6 +93,10 @@ for bun in "$here"/bun/*/bun; do
         status=fail
         bin=-
     fi
+    # Bun 1.0.0 to 1.1.0 (measured) also leave a ~50 MB copy of the binary
+    # beside the entrypoint, despite --outfile. Why is not known; delete it so
+    # it does not sit untracked in the fixture.
+    rm -f "$loaders/$name"
     printf '%s\t%s\t%s\t%s\t%s\n' "$version" host loaders "$status" "$bin" >> "$out/builds.tsv"
 done
 
