@@ -3,7 +3,7 @@
 //!
 //! No field in the payload records the release. The runtime carries it as the
 //! literal `Bun v<major>.<minor>.<patch> (<commit>)`, `<commit>` being 8 or 9
-//! lowercase hex digits. In each of the 74 `tools/bun-matrix` executables
+//! lowercase hex digits. In each of the 110 `tools/bun-matrix` executables
 //! (Bun 1.0.0 to 1.4.4) that pattern had exactly one distinct match, naming
 //! the release that built the file.
 //!

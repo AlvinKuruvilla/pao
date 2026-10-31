@@ -498,7 +498,7 @@ string, of the form:
 Bun v<major>.<minor>.<patch> (<commit>)
 ```
 
-where `<commit>` is 8 or 9 lowercase hexadecimal digits. In each of the 74
+where `<commit>` is 8 or 9 lowercase hexadecimal digits. In each of the 110
 matrix executables, this pattern had exactly one distinct match, and its
 version was the release that built the file. A reader should search only the
 runtime image, the bytes outside `base .. t + 16`, because bundled code can
@@ -521,7 +521,7 @@ Three sets of executables back this document. The first two are rebuilt by
 
 | Set | Contents | Checks |
 |---|---|---|
-| Matrix | `fixture/`, built by 14 releases from 1.0.0 to 1.4.4 for macOS arm64, Linux x64 and Windows x64, with and without `--bytecode`: 74 executables. | Layout detection gives one candidate per file, matching the release (`tests/locate_corpus.rs`); placement (section 3); version strings (section 10). |
+| Matrix | `fixture/`, built by 14 releases from 1.0.0 to 1.4.4 for macOS arm64, Linux x64 and Windows x64, plain, with `--bytecode` and with `--sourcemap`: 110 executables. | Layout detection gives one candidate per file, matching the release (`tests/locate_corpus.rs`); placement (section 3, measured on the 74 without `--sourcemap`); version strings (section 10). |
 | Loaders | `fixture-loaders/`, built by the same 14 releases for the host: 14 executables. | Loader values against section 7.1's tables (`tests/loaders_corpus.rs`). |
 | Production | One large executable built by a custom Bun 1.4.4. | Layout detection on thousands of modules; flags, extension records and linked bytecode (section 8). |
 

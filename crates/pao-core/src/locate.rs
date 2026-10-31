@@ -15,7 +15,7 @@
 //! - **No name-prefix check**: requiring `/$bunfs/root/` and its relatives
 //!   would make false matches rarer, but a Bun release that changed the
 //!   prefix would fail as [`LocateError::NotFound`] despite a known layout.
-//!   Structural checks alone gave one decoding in each of the 74 binaries
+//!   Structural checks alone gave one decoding in each of the 110 binaries
 //!   from `tools/bun-matrix` (Bun 1.0.0–1.4.4) and in one large production
 //!   binary, both in this crate and in `tools/probe.py`.
 //! - **Eager entry table**: the checks read every entry anyway, so
