@@ -22,6 +22,7 @@ pub mod byte_reader;
 pub mod entry;
 pub mod layout_version;
 pub mod locate;
+pub mod names;
 pub mod offsets;
 pub mod payload;
 pub mod string_pointer;

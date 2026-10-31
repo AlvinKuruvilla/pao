@@ -35,6 +35,13 @@ pub struct BunVersion<'a> {
     pub commit: &'a str,
 }
 
+impl BunVersion<'_> {
+    /// `(major, minor, patch)`, which orders releases.
+    pub fn release(&self) -> (u32, u32, u32) {
+        (self.major, self.minor, self.patch)
+    }
+}
+
 impl fmt::Display for BunVersion<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}.{}.{} ({})", self.major, self.minor, self.patch, self.commit)
