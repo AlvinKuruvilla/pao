@@ -53,7 +53,13 @@ pub fn run(
         eprintln!("warning: {warning}");
     }
 
-    let count = |tree| project.files.iter().filter(|file| file.tree == tree).count();
+    let count = |tree| {
+        project
+            .files
+            .iter()
+            .filter(|file| file.tree == tree)
+            .count()
+    };
     let sources = count(Tree::Sources);
     println!(
         "wrote {} module(s) to {} and {sources} source file(s) to {}",

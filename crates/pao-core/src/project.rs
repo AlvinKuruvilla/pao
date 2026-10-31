@@ -145,7 +145,10 @@ pub enum ProjectError {
     /// A module's text is not valid in the encoding it declares.
     BadText { name: String, reason: String },
     /// A module's source map does not decode.
-    SourceMap { module: String, error: SourceMapError },
+    SourceMap {
+        module: String,
+        error: SourceMapError,
+    },
     /// Two source maps list one file with different contents.
     ConflictingSource { name: String },
 }
@@ -164,7 +167,10 @@ impl fmt::Display for ProjectError {
                 write!(f, "cannot convert module {name} to UTF-8: {reason}")
             }
             ProjectError::SourceMap { module, error } => {
-                write!(f, "cannot decode the source map of module {module}: {error}")
+                write!(
+                    f,
+                    "cannot decode the source map of module {module}: {error}"
+                )
             }
             ProjectError::ConflictingSource { name } => {
                 write!(f, "two source maps list {name} with different contents")
@@ -238,7 +244,9 @@ fn bundled(
             .unwrap_or(name);
         let (up, mut segments) = split_parents(relative).map_err(unsafe_name)?;
         if up > 0 {
-            return Err(unsafe_name("it climbs out of its directory with `..`".into()));
+            return Err(unsafe_name(
+                "it climbs out of its directory with `..`".into(),
+            ));
         }
         let Some(file_name) = segments.last_mut() else {
             return Err(unsafe_name("nothing is left after the virtual root".into()));
@@ -412,7 +420,10 @@ fn to_utf8(contents: &[u8], encoding: Option<&str>) -> Result<Vec<u8>, String> {
         // `utf16` module of one 1.4.4 executable.
         Some("utf16") => {
             if !contents.len().is_multiple_of(2) {
-                return Err(format!("UTF-16 contents have an odd length, {}", contents.len()));
+                return Err(format!(
+                    "UTF-16 contents have an odd length, {}",
+                    contents.len()
+                ));
             }
             let units = contents
                 .as_chunks::<2>()
