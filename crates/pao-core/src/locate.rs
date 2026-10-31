@@ -163,7 +163,11 @@ fn try_layout(binary: &[u8], trailer_pos: usize, layout: LayoutVersion) -> Optio
         .chunks_exact(entry_size)
         .map(|row| {
             let entry = parse_entry(row, layout)?;
-            let optional = [entry.bytecode, entry.module_info, entry.bytecode_origin_path];
+            let optional = [
+                entry.bytecode,
+                entry.module_info,
+                entry.bytecode_origin_path,
+            ];
             for pointer in optional.into_iter().flatten() {
                 payload.get(pointer)?;
             }
