@@ -165,7 +165,7 @@ The `Offsets` record immediately precedes the trailer. It has two sizes:
 | `modules_ptr` | `StringPointer` | The module table. |
 | `entry_point_id` | `u32` | Index into the module table of the module run at startup. |
 | `compile_exec_argv_ptr` | `StringPointer` | Arguments given to `--compile-exec-argv`. Added in an untested release between 1.2.13 and 1.2.23. |
-| `flags` | `u32` | Bit set; section 8 lists the bits defined at 1.4.4. Bun 1.3.7 already writes it; before that these 4 bytes are padding. |
+| `flags` | `u32` | Bit set from Bun 1.3.3; padding before, zero in every build tested. Section 8.1 lists the bits and the release that defined each. |
 
 The first 20 bytes are identical in both sizes. The 32-byte record arrived
 with `compile_exec_argv_ptr`; `flags` later took over what had been padding,
@@ -248,43 +248,50 @@ Module names start with one of these prefixes:
 ### 7.1 Loader
 
 `loader` is the `u8` value of Bun's `Loader` enum, which decides how Bun
-treats the module's bytes. The numbering changed once. Bun 1.2.5 inserted
-`jsonc` at 7, and every loader above it moved up by one:
+treats the module's bytes. The enum was read at all 127 Bun 1.x release
+tags. Most releases appended variants; two inserted one in the middle,
+moving every loader above it up by one:
 
-| Value | Bun ≤ 1.2.4 | Bun ≥ 1.2.5 |
-|---:|---|---|
-| 0 | jsx | jsx |
-| 1 | js | js |
-| 2 | ts | ts |
-| 3 | tsx | tsx |
-| 4 | css | css |
-| 5 | file | file |
-| 6 | json | json |
-| 7 | toml | jsonc |
-| 8 | wasm | toml |
-| 9 | napi | wasm |
-| 10 | base64 | napi |
-| 11 | dataurl | base64 |
-| 12 | text | dataurl |
-| 13 | bunsh | text |
-| 14 | sqlite | bunsh |
-| 15 | sqlite_embedded | sqlite |
-| 16 | html | sqlite_embedded |
-| 17 | | html |
-| 18 | | yaml |
-| 19 | | json5 |
-| 20 | | md |
-| 21 | | xml |
+| Release | Change | Commit |
+|---|---|---|
+| 1.0.0 | `jsx` … `text`, values 0 – 12 | `822a00c4d508` |
+| 1.0.23 | appended `sqlite`, `sqlite_embedded` | `4ccf6fb28492` |
+| 1.0.24 | **inserted `bunsh` at 13** | `d4794bbac82c` |
+| 1.1.43 | appended `html` | `76800b049a70` |
+| 1.2.5 | **inserted `jsonc` at 7** | `013fdddc6ed1` |
+| 1.2.21 | appended `yaml` | `7c45ed97def1` |
+| 1.3.7 | appended `json5` | `ba426210c28a` |
+| 1.3.8 | appended `md` | `b64edcb490b4` |
+| 1.4.0 | appended `xml` | `34cbb9a40b4b` |
 
-Releases only ever appended to the end within each era. Bun 1.0.0 stops at
-`text`; `bunsh`, `sqlite` and `sqlite_embedded` were present by 1.1.20,
-`html` by 1.1.45, `yaml` by 1.2.23, `json5` by 1.3.7, `md` by 1.3.14 and
-`xml` by 1.4.4.
+That gives three numberings. A release defines a prefix of one of them, up
+to its last appended variant:
 
-Because both eras fall inside layout V1_1_30 (1.1.30 – 1.2.12), the layout
-alone does not determine the table for values 7 and above. A reader needs the
-Bun release (section 10); without it, it should report both readings rather
-than choose.
+| Value | 1.0.0 – 1.0.23 | 1.0.24 – 1.2.4 | 1.2.5 – 1.4.4 |
+|---:|---|---|---|
+| 0 – 6 | jsx, js, ts, tsx, css, file, json | same | same |
+| 7 | toml | toml | jsonc |
+| 8 | wasm | wasm | toml |
+| 9 | napi | napi | wasm |
+| 10 | base64 | base64 | napi |
+| 11 | dataurl | dataurl | base64 |
+| 12 | text | text | dataurl |
+| 13 | sqlite (1.0.23) | bunsh | text |
+| 14 | sqlite_embedded (1.0.23) | sqlite | bunsh |
+| 15 | | sqlite_embedded | sqlite |
+| 16 | | html (1.1.43) | sqlite_embedded |
+| 17 | | | html |
+| 18 | | | yaml (1.2.21) |
+| 19 | | | json5 (1.3.7) |
+| 20 | | | md (1.3.8) |
+| 21 | | | xml (1.4.0) |
+
+The 1.2.5 change falls inside layout V1_1_30 (1.1.30 – 1.2.12), so the
+layout alone does not determine the name of values 7 and above. A reader
+needs the exact release (section 10). A value the release does not define
+names nothing, even where a later release defines it.
+`crates/pao-core/src/names.rs` implements these tables, and they were
+checked against the source enum at every tag.
 
 Most loaders never appear in a module table, because Bun compiles the file
 into JavaScript and stores the result as a `js` module. Seen on bytes:
@@ -316,9 +323,9 @@ These have had the same values in every release that has them:
 |---:|---|---|---|
 | 0 | none | binary | server |
 | 1 | esm | latin1 | client |
-| 2 | cjs | utf8, never written (≤ 1.3.14); utf16 (1.4) | |
+| 2 | cjs | utf8, never written (≤ 1.4.0); utf16 (≥ 1.4.1) | |
 
-Bun 1.4 reused `encoding` 2, which earlier releases defined but never wrote,
+Bun 1.4.1 (`4661e494f052`) reused `encoding` 2, which earlier releases defined but never wrote,
 for UTF-16 code units, so that an older runtime still reads such a module
 as plain bytes. Bytecode is not tied to one module format: the matrix's
 `--bytecode` builds are CommonJS (`module_format` 2), and from 1.3.14,
@@ -330,26 +337,35 @@ files.
 
 ### 8.1 Flags
 
-The bits of `Offsets.flags` defined at Bun 1.4.4:
+`Offsets.flags` began as padding and became a bit set in Bun 1.3.3. Later
+releases added bits, read from the flags type at all 31 release tags from
+1.2.13 to 1.4.4:
 
-| Bit | Name | Meaning |
-|---:|---|---|
-| 0 | `DISABLE_DEFAULT_ENV_FILES` | Run-time behaviour. |
-| 1 | `DISABLE_AUTOLOAD_BUNFIG` | Run-time behaviour. |
-| 2 | `DISABLE_AUTOLOAD_TSCONFIG` | Run-time behaviour. |
-| 3 | `DISABLE_AUTOLOAD_PACKAGE_JSON` | Run-time behaviour. |
-| 4 | `SOURCE_TEXT_CONTIGUOUS` | Every module's `contents` lies in one run that no other region overlaps. |
-| 5 | `HAS_SOURCE_HASHES` | Record present (8.2). |
-| 6 | `HAS_BUILTIN_BYTECODE` | Record present. |
-| 7 | `HAS_BYTECODE_STRING_TABLE` | Record present. |
-| 8 | `HAS_STARTUP_MODULE_COUNT` | Record present. |
-| 9 | `HAS_MODULE_INFO_STRING_TABLE` | Record present. |
-| 10 | `CROSS_COMPILED_BYTECODE` | The bytecode was written by another platform's JavaScriptCore. |
-| 11 | `HAS_PRELINKED_MODULE_GRAPH` | Record present. |
-| 12 | `HAS_RUNTIME_OPTIONS` | Record present. |
-| 13 | `HAS_LINKED_BYTECODE_PAYLOAD` | Record present, and `bytecode` pointers change meaning (8.3). |
+| Bit | Name | Since | Meaning |
+|---:|---|---|---|
+| 0 | `DISABLE_DEFAULT_ENV_FILES` | 1.3.3 | Run-time behaviour. |
+| 1 | `DISABLE_AUTOLOAD_BUNFIG` | 1.3.3 | Run-time behaviour. |
+| 2 | `DISABLE_AUTOLOAD_TSCONFIG` | 1.3.4 | Run-time behaviour. |
+| 3 | `DISABLE_AUTOLOAD_PACKAGE_JSON` | 1.3.4 | Run-time behaviour. |
+| 4 | `SOURCE_TEXT_CONTIGUOUS` | 1.4.1 | Every module's `contents` lies in one run that no other region overlaps. |
+| 5 | `HAS_SOURCE_HASHES` | 1.4.1 | Record present (8.2). |
+| 6 | `HAS_BUILTIN_BYTECODE` | 1.4.1 | Record present. |
+| 7 | `HAS_BYTECODE_STRING_TABLE` | 1.4.1 | Record present. |
+| 8 | `HAS_STARTUP_MODULE_COUNT` | 1.4.1 | Record present. |
+| 9 | `HAS_MODULE_INFO_STRING_TABLE` | 1.4.1 | Record present. |
+| 10 | `CROSS_COMPILED_BYTECODE` | 1.4.1 | The bytecode was written by another platform's JavaScriptCore. |
+| 11 | `HAS_PRELINKED_MODULE_GRAPH` | 1.4.3 | Record present. |
+| 12 | `HAS_RUNTIME_OPTIONS` | 1.4.3 | Record present. |
+| 13 | `HAS_LINKED_BYTECODE_PAYLOAD` | 1.4.3 | Record present, and `bytecode` pointers change meaning (8.3). |
 
-Bits 14 – 31 are undefined.
+Commits: 1.3.3 `abb1b0c4d75a`, 1.3.4 `5eb2145b3104`, 1.4.1 `4661e494f052`,
+1.4.3 `c6da4a4d3010`. Bits 14 – 31 are undefined at 1.4.4.
+
+The first two steps fall inside layout V1_2_23 (1.2.23 – 1.3.7), so a reader
+must read these 4 bytes in both 32-byte layouts and decide what they mean from
+the release (section 10): a 1.3.7 build writes `0xc`. A bit the release does
+not define must be reported, not named; in every matrix build, no such bit is
+set. `crates/pao-core/src/flags.rs` implements this table.
 
 ### 8.2 Extension records
 
@@ -540,8 +556,10 @@ layouts are untested.
   so that a fixture can set `HAS_LINKED_BYTECODE_PAYLOAD`.
 - **Bytecode format.** JavaScriptCore's, tied to the exact JavaScriptCore
   version. Out of scope; section 8.3 is as far as this document goes.
-- **`flags` at 1.3.7.** Bun 1.3.7 writes `flags`, but which bits it defines
-  has not been read.
+- **Extension records before 1.4.4.** Section 8.2's record order was read
+  at 1.4.4 and checked on one 1.4.4 executable. Bits 5 – 9 date from 1.4.1
+  and 11 – 13 from 1.4.3; whether their records had the same shape in those
+  releases has not been read.
 - **The `.toml`, `jsonc` and other unseen loaders.** No tested build stores
   them as their own entries; if one does, section 7.1's tables name them, but
   that naming is checked only against the source.
