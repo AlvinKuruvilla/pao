@@ -55,7 +55,9 @@ binaries:
 # Needs tools/bun-matrix/bun/<version>/bun for each release, from Bun's
 # GitHub releases.
 tools/bun-matrix/build.sh
-PAO_MATRIX_DIR=tools/bun-matrix/out/bin cargo test -p pao-core
+PAO_MATRIX_DIR=$PWD/tools/bun-matrix/out/bin \
+PAO_LOADERS_DIR=$PWD/tools/bun-matrix/out/bin-loaders \
+    cargo test -p pao-core
 
 # Any other Bun executable: checks only that it decodes.
 PAO_EXTRA_BINARY=path/to/app cargo test -p pao-core
