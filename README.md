@@ -15,7 +15,9 @@ version. One scanner covers every platform and every release tested.
   `extract` writes each module's code, and the original source files from any
   embedded source map. Splitting a bundle back into its files without a source
   map is not done yet.
-- **GUI** (Tauri): not started.
+- **Pao** (desktop app, Tauri): a read-only viewer over the same files
+  `extract` writes, with the module details `inspect` prints. Not packaged
+  for release yet.
 
 ## Supported Bun releases
 
@@ -61,6 +63,31 @@ for module in &located.modules {
 }
 ```
 
+## Desktop app
+
+```sh
+(cd gui && pnpm install)
+cd crates/pao-gui && cargo tauri dev
+```
+
+Needs Node, pnpm and the Tauri CLI (`cargo install tauri-cli`). The frontend
+in `gui/` is React, Monaco and Prettier; the backend in `crates/pao-gui` holds
+the opened executable's files in memory and serves them one at a time.
+
+- **Open**: drag an executable onto the window, or ⌘O.
+- **Find a file**: ⌘P opens a picker with a preview.
+- **Formatting**: files up to 1 MB are formatted with Prettier when opened;
+  larger ones have a Format button.
+
+`pao-gui` is not a default workspace member, so `cargo build` and
+`cargo test` skip Tauri; build it with `-p pao-gui`. The app icons are
+generated from `crates/pao-gui/icons/logo.svg`:
+
+```sh
+rsvg-convert -w 1024 -h 1024 crates/pao-gui/icons/logo.svg -o logo.png
+cd crates/pao-gui && cargo tauri icon ../../logo.png && rm -rf icons/android icons/ios
+```
+
 ## Testing
 
 ```sh
@@ -89,3 +116,9 @@ PAO_EXTRA_BINARY=path/to/app cargo test -p pao-core
 
 Licensed under either of [Apache License 2.0](LICENSE-APACHE) or
 [MIT](LICENSE-MIT), at your option.
+
+The desktop app bundles the file and folder icons of
+[Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme),
+copyright (c) 2025 Material Extensions, under the MIT License. Its license
+text ships in the `material-icon-theme` package, at
+`gui/node_modules/material-icon-theme/LICENSE`.

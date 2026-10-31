@@ -1,0 +1,15 @@
+[package]
+name = "pao-gui"
+description = "Desktop viewer for the code inside Bun single-file executables"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+pao-core = { version = "0.1.0", path = "../pao-core" }
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2.12", features = [] }
+tauri-plugin-dialog = "2"
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }

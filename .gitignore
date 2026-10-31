@@ -5,3 +5,6 @@
 /tools/bun-matrix/fixture-loaders/data.db
 /tools/bun-matrix/fixture-loaders/addon.node
 /tools/bun-matrix/fixture-loaders/module.wasm
+/gui/node_modules
+/gui/dist
+/crates/pao-gui/gen

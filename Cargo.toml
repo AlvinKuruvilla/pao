@@ -1,6 +1,10 @@
 [workspace]
 resolver = "3"
-members = ["crates/pao-core", "crates/pao"]
+members = ["crates/pao-core", "crates/pao", "crates/pao-gui"]
+# pao-gui pulls in Tauri and a webview; leaving it out here keeps a plain
+# `cargo build` / `cargo test` to the parser and the CLI. Build it with
+# `-p pao-gui` or `cargo tauri dev`.
+default-members = ["crates/pao-core", "crates/pao"]
 
 [workspace.package]
 version = "0.1.0"

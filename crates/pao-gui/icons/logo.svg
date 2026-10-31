@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- pao: a bun split open. The source for every image in this directory;
+       regenerate them with `cargo tauri icon` from a 1024 px render. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2A2B3D"/>
+      <stop offset="1" stop-color="#16161F"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#tile)" filter="url(#shadow)"/>
+
+  <!-- Centred optically: the lifted top makes the bun read left-heavy. -->
+  <g transform="translate(22 14)">
+  <g stroke="#3B2210" stroke-width="20" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Bottom half: crust bowl, its cut face seen from above. -->
+    <path fill="#E8973A" d="M232 620 C232 740 356 800 512 800 C668 800 792 740 792 620 Z"/>
+    <ellipse cx="512" cy="620" rx="280" ry="78" fill="#FFF0D2"/>
+
+    <!-- Top half, hinged at the back left and lifted open: the cut face
+         tilts toward the viewer, the dome sits behind it. -->
+    <g transform="rotate(-24 240 596)">
+      <path fill="#F2A848" d="M232 590 C232 410 360 330 512 330 C664 330 792 410 792 590 Z"/>
+      <ellipse cx="512" cy="590" rx="280" ry="78" fill="#FFF0D2"/>
+    </g>
+  </g>
+
+  <!-- Crumb: air pockets in both cut faces. -->
+  <g fill="#EFCF98">
+    <ellipse cx="420" cy="612" rx="22" ry="9"/>
+    <ellipse cx="540" cy="636" rx="16" ry="7"/>
+    <ellipse cx="640" cy="606" rx="20" ry="8"/>
+    <ellipse cx="350" cy="638" rx="12" ry="5"/>
+  </g>
+  <g fill="#EFCF98" transform="rotate(-24 240 596)">
+    <ellipse cx="430" cy="586" rx="20" ry="8"/>
+    <ellipse cx="560" cy="606" rx="16" ry="7"/>
+    <ellipse cx="660" cy="580" rx="18" ry="7"/>
+  </g>
+
+  <!-- Crust shine on the dome, which shows above the lifted face. -->
+  <g transform="rotate(-24 240 596)">
+    <path d="M330 440 C380 384 440 364 500 360" stroke="#FFD58F" stroke-width="24" stroke-linecap="round" fill="none"/>
+  </g>
+
+  </g>
+</svg>
